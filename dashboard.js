@@ -174,6 +174,10 @@ function showLinkGate() {
 // Step 1 -> 2
 $('#agRegisterBtn').addEventListener('click', () => showGate('key'));
 $('#agKeyBack').addEventListener('click', () => showGate('start'));
+// Continue with Discord — straight to OAuth (no key required first)
+$('#agDiscordBtn').addEventListener('click', () => {
+  window.location.href = API_BASE + '/auth/discord';
+});
 // Top-left back arrow always returns to the start step
 $('#agBack').addEventListener('click', () => showGate('start'));
 
@@ -1208,6 +1212,8 @@ function bindAdminKeyActions() {
       hideGate();
     } else {
       // authed but no key linked and nothing pending -> ask for a key
+      const sub = $('#agSub');
+      if (sub) sub.textContent = 'You\u2019re signed in with Discord. Register a license key to unlock your dashboard.';
       showGate('key');
     }
   } catch (e) {

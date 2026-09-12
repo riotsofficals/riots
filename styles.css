@@ -531,6 +531,10 @@ body.loaded .navbar { transform: translateX(-50%) translateY(0); }
 }
 .ag-back:hover { color: #fff; border-color: var(--line-red); background: rgba(255,43,43,.1); }
 .ag-back i, .ag-back .lucide { width: 18px; height: 18px; }
+.ag-or { display: flex; align-items: center; gap: 12px; margin: 14px 0; color: var(--muted-2); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+.ag-or::before, .ag-or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+#agStepStart .btn.wide { width: 100%; }
+#agStepStart .btn + .ag-admin-toggle { margin-top: 14px; }
 .ag-user { display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--muted); font-size: 14px; margin-bottom: 12px; }
 .ag-user .user-avatar { width: 32px; height: 32px; }
 .ag-error { color: var(--red-2); font-size: 13px; margin-top: 10px; }

@@ -13,6 +13,21 @@ const CLIENT_TOKEN = window.RIOTS_CLIENT_TOKEN || '';
 let ADMIN_KEY = null;
 let ME = null;
 
+// Session token (fallback for when third-party cookies are blocked). Captured
+// from the OAuth redirect fragment (#token=...) and reused as a Bearer header.
+const SESSION_KEY = 'riots_session_token';
+(function captureSessionToken() {
+  const m = location.hash.match(/[#&]token=([^&]+)/);
+  if (m) {
+    try { localStorage.setItem(SESSION_KEY, decodeURIComponent(m[1])); } catch (_) {}
+    // strip the token from the URL so it isn't left in the address bar
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+})();
+function getSessionToken() {
+  try { return localStorage.getItem(SESSION_KEY) || ''; } catch (_) { return ''; }
+}
+
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
@@ -26,6 +41,8 @@ async function api(path, { method = 'GET', body, admin = false } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (admin && ADMIN_KEY) headers['x-admin-key'] = ADMIN_KEY;
   if (CLIENT_TOKEN) headers['x-client-token'] = CLIENT_TOKEN;
+  const st = getSessionToken();
+  if (st) headers['Authorization'] = 'Bearer ' + st;
   const res = await fetch(API_BASE + path, {
     method,
     headers,
@@ -67,6 +84,9 @@ function showGate(step) {
   $('#agStepStart').hidden = step !== 'start';
   $('#agStepKey').hidden = step !== 'key';
   $('#agStepAdmin').hidden = step !== 'admin';
+  // Back arrow shows on any step except the first.
+  const back = $('#agBack');
+  if (back) back.hidden = step === 'start';
   renderIcons();
 }
 function hideGate() {
@@ -85,6 +105,8 @@ function showLinkGate() {
 // Step 1 -> 2
 $('#agRegisterBtn').addEventListener('click', () => showGate('key'));
 $('#agKeyBack').addEventListener('click', () => showGate('start'));
+// Top-left back arrow always returns to the start step
+$('#agBack').addEventListener('click', () => showGate('start'));
 
 // Step 2: save the key locally, then show the blurred dashboard + link button
 $('#agKeyContinue').addEventListener('click', () => {
@@ -128,6 +150,7 @@ $('#logoutBtn').addEventListener('click', async () => {
   try { await api('/auth/logout', { method: 'POST' }); } catch {}
   ADMIN_KEY = null; ME = null;
   localStorage.removeItem(PENDING_KEY);
+  try { localStorage.removeItem(SESSION_KEY); } catch (_) {}
   location.reload();
 });
 
@@ -375,7 +398,7 @@ function renderReferralDashboard(panel, ref) {
         <div class="ref-stat"><div class="rs-val">${ref.signups || 0}</div><div class="rs-label">Signups</div></div>
         <div class="ref-stat"><div class="rs-val">$${Number(ref.earnings || 0).toFixed(2)}</div><div class="rs-label">Earned</div></div>
       </div>
-      <p class="ref-note">Your code is <strong>${esc(ref.code)}</strong>. Share your link anywhere to start earning.</p>
+      <p class="ref-note">Your code is <strong>${esc(ref.code)}</strong>. Share your link anywhere — it passes your code to checkout as the affiliate code so your sales are tracked in Komerza.</p>
     </div>`;
   renderIcons();
   const copyBtn = panel.querySelector('#refCopy');
@@ -470,150 +493,203 @@ function enterAdminMode() {
 async function loadAdmin() {
   const area = $('#adminArea');
   area.innerHTML = `
-    <div class="admin-grid">
-      <!-- My key settings -->
-      <div class="admin-card">
-        <h3>My key settings</h3>
-        <p class="admin-hint">Paste one of your own keys to inspect / manage it.</p>
-        <input type="text" id="adMyKey" placeholder="Your key" />
-        <button class="btn btn-bw" id="adLookup"><span>Look up</span></button>
-        <div id="adMyKeyResult"></div>
-      </div>
+    <div class="adm">
+      <aside class="adm-nav">
+        <div class="adm-nav-title">Admin</div>
+        <button class="adm-navbtn active" data-section="overview"><i data-lucide="layout-dashboard"></i><span>Overview</span></button>
+        <button class="adm-navbtn" data-section="products"><i data-lucide="package"></i><span>Products</span></button>
+        <button class="adm-navbtn" data-section="keys"><i data-lucide="key-round"></i><span>Keys &amp; users</span></button>
+        <button class="adm-navbtn" data-section="discounts"><i data-lucide="ticket-percent"></i><span>Discounts</span></button>
+        <button class="adm-navbtn" data-section="referrals"><i data-lucide="gift"></i><span>Referrals</span></button>
+        <button class="adm-navbtn" data-section="tickets"><i data-lucide="life-buoy"></i><span>Tickets</span></button>
+        <button class="adm-navbtn" data-section="status"><i data-lucide="activity"></i><span>Status</span></button>
+        <button class="adm-navbtn" data-section="devlog"><i data-lucide="megaphone"></i><span>Devlog</span></button>
+      </aside>
 
-      <!-- Manage users -->
-      <div class="admin-card">
-        <h3>Manage keys / users</h3>
-        <div class="admin-row">
-          <input type="text" id="adFilter" placeholder="Filter by Discord ID or key (blank = all)" />
-          <button class="btn btn-bw" id="adSearch"><span>Search</span></button>
-        </div>
-        <div id="adKeyList" class="admin-list"></div>
-      </div>
+      <div class="adm-main">
+        <!-- OVERVIEW -->
+        <section class="adm-section active" data-section="overview">
+          <div class="adm-head"><h2>Overview</h2><p>Quick snapshot of your store.</p></div>
+          <div class="adm-stats" id="adStats">
+            <div class="adm-stat"><div class="as-ico"><i data-lucide="package"></i></div><div><div class="as-val" data-stat="products">—</div><div class="as-label">Products</div></div></div>
+            <div class="adm-stat"><div class="as-ico"><i data-lucide="ticket-percent"></i></div><div><div class="as-val" data-stat="discounts">—</div><div class="as-label">Discount codes</div></div></div>
+            <div class="adm-stat"><div class="as-ico"><i data-lucide="gift"></i></div><div><div class="as-val" data-stat="referrals">—</div><div class="as-label">Referrals</div></div></div>
+            <div class="adm-stat"><div class="as-ico"><i data-lucide="life-buoy"></i></div><div><div class="as-val" data-stat="tickets">—</div><div class="as-label">Open tickets</div></div></div>
+          </div>
+          <div class="adm-quick">
+            <button class="adm-quick-btn" data-goto="products"><i data-lucide="plus"></i> Add a product</button>
+            <button class="adm-quick-btn" data-goto="keys"><i data-lucide="key-round"></i> Generate keys</button>
+            <button class="adm-quick-btn" data-goto="status"><i data-lucide="activity"></i> Update status</button>
+            <button class="adm-quick-btn" data-goto="devlog"><i data-lucide="megaphone"></i> Post an update</button>
+          </div>
+        </section>
 
-      <!-- Generate / add -->
-      <div class="admin-card">
-        <h3>Generate keys</h3>
-        <div class="admin-row">
-          <input type="number" id="adAmount" placeholder="Amount (5-300)" min="5" max="300" value="5" />
-          <input type="number" id="adExpire" placeholder="Expire seconds (blank=lifetime)" />
-        </div>
-        <button class="btn btn-gradient" id="adGenerate"><span>Generate</span></button>
-        <div id="adGenResult"></div>
-      </div>
+        <!-- PRODUCTS -->
+        <section class="adm-section" data-section="products" hidden>
+          <div class="adm-head"><h2>Products</h2><p>Create, edit and delete store products. Images upload to Cloudinary.</p></div>
+          <div class="adm-card">
+            <div class="adm-card-head"><h3>Catalog</h3><button class="btn btn-bw sm" id="adProdNew" type="button"><i data-lucide="plus"></i><span>New product</span></button></div>
+            <div id="adProdList" class="admin-products"></div>
+          </div>
+          <div class="adm-card" id="adProdFormCard">
+            <div class="adm-card-head"><h3 id="adProdFormTitle">Add product</h3></div>
+            <div class="adm-form-grid">
+              <div class="adm-form-left">
+                <label class="img-drop" id="adImgDrop">
+                  <i data-lucide="image-plus"></i> <span>Click to upload image</span>
+                  <input type="file" id="adImgFile" accept="image/*" hidden />
+                </label>
+                <img id="adImgPreview" class="img-preview" hidden />
+              </div>
+              <div class="adm-form-right">
+                <input type="hidden" id="adProdId" />
+                <input type="hidden" id="adProdImage" />
+                <label class="admin-label">Name &amp; category</label>
+                <div class="admin-row">
+                  <input type="text" id="adProdName" placeholder="Product name" />
+                  <input type="text" id="adProdCategory" placeholder="Category (e.g. Roblox)" />
+                </div>
+                <label class="admin-label">Pricing</label>
+                <div class="admin-row">
+                  <input type="text" id="adProdPrice" placeholder="Lifetime price (e.g. $10)" />
+                  <input type="text" id="adProdPriceMonthly" placeholder="Monthly price (e.g. $4)" />
+                </div>
+                <label class="admin-label">Badge</label>
+                <input type="text" id="adProdBadge" placeholder="Badge (e.g. Best Seller)" />
+                <label class="admin-label">Komerza IDs</label>
+                <input type="text" id="adProdKmrzaProduct" placeholder="Komerza product id" />
+                <div class="admin-row">
+                  <input type="text" id="adProdKmrzaLife" placeholder="Lifetime variant id" />
+                  <input type="text" id="adProdKmrzaMonth" placeholder="Monthly variant id" />
+                </div>
+                <label class="admin-label">Description</label>
+                <textarea id="adProdDesc" rows="3" placeholder="Description"></textarea>
+                <label class="adm-check"><input type="checkbox" id="adProdFeatured" /> <span>Featured on homepage</span></label>
+                <div class="adm-form-actions">
+                  <button class="btn btn-gradient" id="adProdSave"><span>Save product</span></button>
+                  <button class="btn btn-bw" id="adProdReset"><span>Clear</span></button>
+                </div>
+                <div id="adProdResult"></div>
+              </div>
+            </div>
+          </div>
+        </section>
 
-      <!-- Status updater -->
-      <div class="admin-card">
-        <div class="admin-card-head">
-          <h3>Status updater</h3>
-          <span class="admin-badge">live</span>
-        </div>
-        <label class="admin-label">Overall status</label>
-        <select id="adOverall">
-          <option value="operational">Operational</option>
-          <option value="degraded">Degraded</option>
-          <option value="partial">Partial outage</option>
-          <option value="down">Down</option>
-          <option value="maintenance">Maintenance</option>
-        </select>
-        <label class="admin-label">Services</label>
-        <p class="admin-hint">Add each product or service and set its state. These show on the public status page.</p>
-        <div id="adStatusRows" class="status-rows"></div>
-        <button class="btn btn-bw sm" id="adAddService" type="button"><i data-lucide="plus"></i><span>Add service</span></button>
-        <button class="btn btn-gradient" id="adSaveStatus"><span>Publish status</span></button>
-        <div id="adStatusResult"></div>
-      </div>
+        <!-- KEYS -->
+        <section class="adm-section" data-section="keys" hidden>
+          <div class="adm-head"><h2>Keys &amp; users</h2><p>Look up, generate and manage license keys.</p></div>
+          <div class="adm-card">
+            <div class="adm-card-head"><h3>Look up a key</h3></div>
+            <div class="admin-row">
+              <input type="text" id="adMyKey" placeholder="Paste a key to inspect" />
+              <button class="btn btn-bw" id="adLookup"><span>Look up</span></button>
+            </div>
+            <div id="adMyKeyResult"></div>
+          </div>
+          <div class="adm-card">
+            <div class="adm-card-head"><h3>All keys / users</h3></div>
+            <div class="admin-row">
+              <input type="text" id="adFilter" placeholder="Filter by Discord ID or key (blank = all)" />
+              <button class="btn btn-bw" id="adSearch"><span>Search</span></button>
+            </div>
+            <div id="adKeyList" class="admin-list"></div>
+          </div>
+          <div class="adm-card">
+            <div class="adm-card-head"><h3>Generate keys</h3></div>
+            <div class="admin-row">
+              <input type="number" id="adAmount" placeholder="Amount (5-300)" min="5" max="300" value="5" />
+              <input type="number" id="adExpire" placeholder="Expire seconds (blank=lifetime)" />
+            </div>
+            <button class="btn btn-gradient" id="adGenerate"><span>Generate</span></button>
+            <div id="adGenResult"></div>
+          </div>
+        </section>
 
-      <!-- Product manager -->
-      <div class="admin-card wide">
-        <h3>Products</h3>
-        <p class="admin-hint">Create, edit and delete the products shown in the store. Images upload to Cloudinary.</p>
-        <div id="adProdList" class="admin-products"></div>
+        <!-- DISCOUNTS -->
+        <section class="adm-section" data-section="discounts" hidden>
+          <div class="adm-head"><h2>Discount codes</h2><p>Mirror of your Komerza coupons. Create the same code as a coupon in your Komerza dashboard for it to actually apply at checkout.</p></div>
+          <div class="adm-card">
+            <div class="adm-card-head"><h3>New code</h3></div>
+            <div class="admin-row">
+              <input type="text" id="adDiscCode" placeholder="CODE (e.g. SAVE20)" />
+              <select id="adDiscType">
+                <option value="percent">% off</option>
+                <option value="fixed">$ off</option>
+              </select>
+            </div>
+            <div class="admin-row">
+              <input type="number" id="adDiscAmount" placeholder="Amount" min="0" />
+              <input type="text" id="adDiscNote" placeholder="Note (optional)" />
+            </div>
+            <button class="btn btn-gradient" id="adDiscSave"><span>Create code</span></button>
+            <div id="adDiscResult"></div>
+            <div id="adDiscList" class="admin-list" style="margin-top:12px"></div>
+          </div>
+        </section>
 
-        <h3 style="margin-top:18px">Add / edit product</h3>
-        <label class="img-drop" id="adImgDrop">
-          <i data-lucide="image-plus"></i> <span>Click to upload image</span>
-          <input type="file" id="adImgFile" accept="image/*" hidden />
-        </label>
-        <img id="adImgPreview" class="img-preview" hidden />
-        <input type="hidden" id="adProdId" />
-        <input type="hidden" id="adProdImage" />
-        <div class="admin-row">
-          <input type="text" id="adProdName" placeholder="Product name" />
-          <input type="text" id="adProdCategory" placeholder="Category (e.g. Roblox)" />
-        </div>
-        <div class="admin-row">
-          <input type="text" id="adProdPrice" placeholder="Lifetime price (e.g. $10)" />
-          <input type="text" id="adProdPriceMonthly" placeholder="Monthly price (e.g. $4)" />
-        </div>
-        <div class="admin-row">
-          <input type="text" id="adProdBadge" placeholder="Badge (e.g. Best Seller)" />
-          <input type="text" id="adProdKmrzaProduct" placeholder="Komerza product id" />
-        </div>
-        <div class="admin-row">
-          <input type="text" id="adProdKmrzaLife" placeholder="Komerza lifetime variant id" />
-          <input type="text" id="adProdKmrzaMonth" placeholder="Komerza monthly variant id" />
-        </div>
-        <textarea id="adProdDesc" rows="3" placeholder="Description"></textarea>
-        <label class="admin-hint" style="display:flex;align-items:center;gap:8px">
-          <input type="checkbox" id="adProdFeatured" style="width:auto;margin:0" /> Featured
-        </label>
-        <button class="btn btn-gradient" id="adProdSave"><span>Save product</span></button>
-        <button class="btn btn-bw" id="adProdReset"><span>Clear form</span></button>
-        <div id="adProdResult"></div>
-      </div>
+        <!-- REFERRALS -->
+        <section class="adm-section" data-section="referrals" hidden>
+          <div class="adm-head"><h2>Referrals</h2><p>People signed up to your referral program.</p></div>
+          <div class="adm-card"><div id="adRefList" class="admin-list"></div></div>
+        </section>
 
-      <!-- Devlog editor -->
-      <!-- Discount codes -->
-      <div class="admin-card">
-        <h3>Discount codes</h3>
-        <p class="admin-hint">Create codes buyers enter at checkout.</p>
-        <div class="admin-row">
-          <input type="text" id="adDiscCode" placeholder="CODE (e.g. SAVE20)" />
-          <select id="adDiscType">
-            <option value="percent">% off</option>
-            <option value="fixed">$ off</option>
-          </select>
-        </div>
-        <div class="admin-row">
-          <input type="number" id="adDiscAmount" placeholder="Amount" min="0" />
-          <input type="text" id="adDiscNote" placeholder="Note (optional)" />
-        </div>
-        <button class="btn btn-gradient" id="adDiscSave"><span>Create code</span></button>
-        <div id="adDiscResult"></div>
-        <div id="adDiscList" class="admin-list" style="margin-top:12px"></div>
-      </div>
+        <!-- TICKETS -->
+        <section class="adm-section" data-section="tickets" hidden>
+          <div class="adm-head"><h2>Support tickets</h2><p>Tickets opened by users.</p></div>
+          <div class="adm-card"><div id="adTicketList" class="admin-list"></div></div>
+        </section>
 
-      <!-- Support tickets -->
-      <div class="admin-card">
-        <h3>Support tickets</h3>
-        <p class="admin-hint">Tickets opened by users.</p>
-        <div id="adTicketList" class="admin-list"></div>
-      </div>
+        <!-- STATUS -->
+        <section class="adm-section" data-section="status" hidden>
+          <div class="adm-head"><h2>Status</h2><p>Publish the live status shown on your status page.</p></div>
+          <div class="adm-card">
+            <label class="admin-label">Overall status</label>
+            <select id="adOverall">
+              <option value="operational">Operational</option>
+              <option value="degraded">Degraded</option>
+              <option value="partial">Partial outage</option>
+              <option value="down">Down</option>
+              <option value="maintenance">Maintenance</option>
+            </select>
+            <label class="admin-label">Services</label>
+            <p class="admin-hint">Add each product or service and set its state.</p>
+            <div id="adStatusRows" class="status-rows"></div>
+            <button class="btn btn-bw sm" id="adAddService" type="button"><i data-lucide="plus"></i><span>Add service</span></button>
+            <button class="btn btn-gradient" id="adSaveStatus"><span>Publish status</span></button>
+            <div id="adStatusResult"></div>
+          </div>
+        </section>
 
-      <!-- Referrals -->
-      <div class="admin-card">
-        <h3>Referrals</h3>
-        <p class="admin-hint">People signed up to the referral program.</p>
-        <div id="adRefList" class="admin-list"></div>
-      </div>
-
-      <!-- Devlog editor -->
-      <div class="admin-card wide">
-        <h3>Post an update (devlog)</h3>
-        <div class="admin-row">
-          <input type="text" id="adDlTitle" placeholder="Update title" />
-          <select id="adDlTag">
-            <option value="update">update</option>
-            <option value="new">new</option>
-            <option value="fix">fix</option>
-            <option value="notice">notice</option>
-          </select>
-        </div>
-        <textarea id="adDlBody" rows="4" placeholder="What changed..."></textarea>
-        <button class="btn btn-gradient" id="adPostDl"><span>Publish update</span></button>
-        <div id="adDlResult"></div>
+        <!-- DEVLOG -->
+        <section class="adm-section" data-section="devlog" hidden>
+          <div class="adm-head"><h2>Devlog</h2><p>Post updates shown on the Updates tab.</p></div>
+          <div class="adm-card">
+            <div class="admin-row">
+              <input type="text" id="adDlTitle" placeholder="Update title" />
+              <select id="adDlTag">
+                <option value="update">update</option>
+                <option value="new">new</option>
+                <option value="fix">fix</option>
+                <option value="notice">notice</option>
+              </select>
+            </div>
+            <textarea id="adDlBody" rows="4" placeholder="What changed..."></textarea>
+            <button class="btn btn-gradient" id="adPostDl"><span>Publish update</span></button>
+            <div id="adDlResult"></div>
+          </div>
+        </section>
       </div>
     </div>`;
+
+  // Section navigation
+  const showSection = (name) => {
+    $$('.adm-navbtn').forEach((b) => b.classList.toggle('active', b.dataset.section === name));
+    $$('.adm-section').forEach((s) => (s.hidden = s.dataset.section !== name));
+  };
+  $$('.adm-navbtn').forEach((b) => b.addEventListener('click', () => showSection(b.dataset.section)));
+  $$('.adm-quick-btn').forEach((b) => b.addEventListener('click', () => showSection(b.dataset.goto)));
+  const prodNew = $('#adProdNew');
+  if (prodNew) prodNew.addEventListener('click', () => { if (typeof resetProdForm === 'function') resetProdForm(); $('#adProdName').focus(); });
 
   // My key lookup
   $('#adLookup').addEventListener('click', async () => {
@@ -709,6 +785,7 @@ async function loadAdmin() {
      'adProdKmrzaProduct','adProdKmrzaLife','adProdKmrzaMonth','adProdDesc'].forEach(id => $('#'+id).value = '');
     $('#adProdFeatured').checked = false;
     setProdImage('');
+    const title = $('#adProdFormTitle'); if (title) title.textContent = 'Add product';
   };
 
   $('#adImgDrop').addEventListener('click', () => $('#adImgFile').click());
@@ -768,10 +845,28 @@ async function loadAdmin() {
     } catch (e) { $('#adDiscResult').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
   });
 
+  renderIcons();
   loadAdminProducts();
   loadAdminDiscounts();
   loadAdminTickets();
   loadAdminReferrals();
+  loadAdminStats();
+}
+
+async function loadAdminStats() {
+  const setStat = (name, val) => {
+    const el = document.querySelector(`#adStats [data-stat="${name}"]`);
+    if (el) el.textContent = val;
+  };
+  // Products (public), discounts/referrals/tickets (admin). Fail soft per call.
+  try { const r = await api('/api/store/products'); setStat('products', (r.products || []).length); } catch (_) {}
+  try { const r = await api('/api/store/discounts', { admin: true }); setStat('discounts', (r.discounts || []).length); } catch (_) {}
+  try { const r = await api('/api/referral', { admin: true }); setStat('referrals', (r.referrals || []).length); } catch (_) {}
+  try {
+    const r = await api('/api/store/tickets', { admin: true });
+    const open = (r.tickets || []).filter((t) => t.status === 'open').length;
+    setStat('tickets', open);
+  } catch (_) {}
 }
 
 async function loadAdminReferrals() {
@@ -912,7 +1007,8 @@ function fillProdForm(p) {
   $('#adProdImage').value = p.image || '';
   if (p.image) { prev.src = p.image; prev.hidden = false; drop.classList.add('has-img'); }
   else { prev.hidden = true; drop.classList.remove('has-img'); }
-  window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+  const title = $('#adProdFormTitle'); if (title) title.textContent = 'Edit product';
+  const card = $('#adProdFormCard'); if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 /* ---------- Cloudinary unsigned upload ---------- */

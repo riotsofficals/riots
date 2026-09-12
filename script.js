@@ -301,9 +301,21 @@ const CLIENT_TOKEN = CFG.CLIENT_TOKEN || '';
 const isReal = (v) => v && !String(v).startsWith('REPLACE');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+(function captureSessionToken() {
+  const m = location.hash.match(/[#&]token=([^&]+)/);
+  if (m) {
+    try { localStorage.setItem('riots_session_token', decodeURIComponent(m[1])); } catch (_) {}
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+})();
+function getSessionToken() {
+  try { return localStorage.getItem('riots_session_token') || ''; } catch (_) { return ''; }
+}
 function apiHeaders(extra = {}) {
   const h = { ...extra };
   if (CLIENT_TOKEN) h['x-client-token'] = CLIENT_TOKEN;
+  const st = getSessionToken();
+  if (st) h['Authorization'] = 'Bearer ' + st;
   return h;
 }
 
@@ -320,14 +332,26 @@ function komerzaInit() {
   }
   return k;
 }
+// Remember a ?ref= affiliate code so it rides along to Komerza checkout.
+function storedAffiliateCode() {
+  try {
+    const fromUrl = new URLSearchParams(location.search).get('ref');
+    if (fromUrl) localStorage.setItem('riots_ref_code', fromUrl);
+    return localStorage.getItem('riots_ref_code') || '';
+  } catch (_) { return ''; }
+}
 // Open the checkout modal for a set of items. Each item: {productId, variantId, quantity}.
+// opts may include couponCode (discount) — affiliateCode (referral) is auto-attached.
 function komerzaOpen(items, opts = {}) {
   const k = komerzaInit();
   if (!k || typeof k.open !== 'function') {
     alert('Checkout is still loading — try again in a second.');
     return false;
   }
-  k.open({ items, theme: (KMRZA && KMRZA.theme) || 'dark', ...opts });
+  const payload = { items, theme: (KMRZA && KMRZA.theme) || 'dark', ...opts };
+  const ref = storedAffiliateCode();
+  if (ref && !payload.affiliateCode) payload.affiliateCode = ref;
+  k.open(payload);
   return true;
 }
 function isValidEmail(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }

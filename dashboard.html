@@ -94,6 +94,7 @@
   <div class="auth-gate" id="authGate">
     <div class="ag-bg"><span class="orb o1"></span><span class="orb o2"></span></div>
     <div class="ag-card" id="agCard">
+      <button class="ag-back" id="agBack" type="button" aria-label="Back" hidden><i data-lucide="arrow-left"></i></button>
       <img src="gui.png" alt="riots.wtf" class="ag-logo" />
       <h2 id="agTitle">Authenticate your account</h2>
       <p id="agSub">Register your key to access your dashboard.</p>
@@ -112,7 +113,7 @@
         <p class="ag-note">Enter your license key to continue.</p>
         <input type="text" id="agKeyInput" placeholder="Enter your license key" />
         <button class="btn btn-gradient wide" id="agKeyContinue"><span>Continue</span></button>
-        <button class="ag-admin-toggle" id="agKeyBack">Back</button>
+        <button class="ag-admin-toggle" id="agKeyBack"><i data-lucide="arrow-left"></i> Back</button>
         <p class="ag-error" id="agKeyError" hidden></p>
       </div>
 
@@ -120,7 +121,7 @@
       <div id="agStepAdmin" hidden>
         <input type="password" id="agAdminInput" placeholder="Enter admin key" />
         <button class="btn btn-gradient wide" id="agAdminSubmit"><span>Unlock admin</span></button>
-        <button class="ag-admin-toggle" id="agAdminBack">Back</button>
+        <button class="ag-admin-toggle" id="agAdminBack"><i data-lucide="arrow-left"></i> Back</button>
         <p class="ag-error" id="agAdminError" hidden></p>
       </div>
     </div>

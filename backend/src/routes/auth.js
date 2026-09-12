@@ -55,8 +55,12 @@ router.get('/discord/callback', async (req, res) => {
     });
     setSessionCookie(res, session);
 
-    // Back to the dashboard, which will call /api/me to hydrate.
-    res.redirect(config.discord.dashboardUrl);
+    // Also hand the token back in the URL fragment so the frontend can store it
+    // and send it as a Bearer header. This is the fallback for browsers that
+    // block third-party cookies (Vercel <-> Railway are different sites).
+    const base = config.discord.dashboardUrl || '/';
+    const sep = base.includes('#') ? '&' : '#';
+    res.redirect(`${base}${sep}token=${encodeURIComponent(session)}`);
   } catch (err) {
     console.error('[auth] Discord callback error:', err.message);
     res.status(500).send('Login failed. Please try again.');

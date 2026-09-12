@@ -37,7 +37,14 @@ export function clearSessionCookie(res) {
 }
 
 export function readSession(req) {
-  const token = req.cookies?.[COOKIE_NAME];
+  // Prefer the cookie, but fall back to a Bearer token. The Bearer path is what
+  // makes login work across sites (Vercel frontend <-> Railway API) even when
+  // the browser blocks third-party cookies.
+  let token = req.cookies?.[COOKIE_NAME];
+  if (!token) {
+    const auth = req.get('authorization') || '';
+    if (auth.startsWith('Bearer ')) token = auth.slice(7).trim();
+  }
   if (!token) return null;
   try {
     return jwt.verify(token, config.jwtSecret);

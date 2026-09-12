@@ -9,7 +9,14 @@ import { config } from './config.js';
  */
 
 const dir = path.resolve(config.dataDir);
-if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+try {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  // Write test so we fail loud in logs if the data dir isn't persistent/writable.
+  fs.accessSync(dir, fs.constants.W_OK);
+  console.log(`[store] data dir ready: ${dir}`);
+} catch (e) {
+  console.warn(`[store] ! data dir "${dir}" not writable (${e.message}). Data will NOT persist. On Railway attach a Volume and set DATA_DIR to its mount path.`);
+}
 
 function file(name) {
   return path.join(dir, `${name}.json`);

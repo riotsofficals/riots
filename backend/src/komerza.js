@@ -48,19 +48,28 @@ export const komerza = {
   async getStock(productId) {
     const result = await this.getProduct(productId);
     const p = result.data || {};
-    const hideStock = !!p.hideStock;
-    const variants = (p.variants || []).map((v) => ({
-      id: v.id,
-      name: v.name,
-      // stockMode 0 usually = unlimited; when hidden, don't leak the number
-      stock: hideStock ? null : (typeof v.stock === 'number' ? v.stock : null),
-      inStock: v.stockMode === 0 ? true : (typeof v.stock === 'number' ? v.stock > 0 : true),
-    }));
-    const anyInStock = variants.some((v) => v.inStock);
+    const productHideStock = !!p.hideStock;
+    const variants = (p.variants || []).map((v) => {
+      // Komerza's authoritative flag: isOutOfStock is true only when stock
+      // tracking is on AND stock is zero; it's always false when stock is
+      // hidden or untracked (e.g. Ignored mode / files). So inStock is just
+      // the inverse — this is what fixes "empty when it isn't".
+      const inStock = v.isOutOfStock !== true;
+      const hideStock = productHideStock || !!v.hideStock;
+      return {
+        id: v.id,
+        name: v.name,
+        stock: hideStock ? null : (typeof v.stock === 'number' ? v.stock : null),
+        inStock,
+      };
+    });
+    // If the product has no variants array (single-variant edge cases), treat
+    // it as in stock rather than falsely empty.
+    const anyInStock = variants.length ? variants.some((v) => v.inStock) : true;
     return {
       productId: p.id,
       name: p.name,
-      hideStock,
+      hideStock: productHideStock,
       inStock: anyInStock,
       variants,
     };

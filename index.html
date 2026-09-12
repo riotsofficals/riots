@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>riots.wtf — #1 market for your playstyle</title>
+  <link rel="icon" href="gui.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="home">
+  <!-- ===== FLOATING NAVBAR ===== -->
+  <header class="navbar" id="navbar">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">
+        <img src="gui.png" alt="riots.wtf" />
+      </a>
+
+      <nav class="nav-tabs">
+        <a href="index.html" class="tab active"><i data-lucide="house"></i><span>Home</span></a>
+        <a href="products.html" class="tab"><i data-lucide="shopping-bag"></i><span>Products</span></a>
+        <a href="status.html" class="tab"><i data-lucide="activity"></i><span>Status</span></a>
+        <a href="referral.html" class="tab"><i data-lucide="gift"></i><span>Referral</span></a>
+      </nav>
+
+      <div class="nav-right">
+        <a href="https://discord.gg/m7Z9Jyp6pf" target="_blank" rel="noopener" class="nav-icon-btn" aria-label="Discord" title="Discord">
+          <svg class="brand" viewBox="0 0 127.14 96.36" fill="currentColor"><path d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0a105.89 105.89 0 0 0-26.25 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53s5-12.74 11.43-12.74S54 46 53.89 53s-5.05 12.69-11.44 12.69Zm42.24 0C78.41 65.69 73.25 60 73.25 53s5-12.74 11.44-12.74S96.23 46 96.12 53s-5.04 12.69-11.43 12.69Z"/></svg>
+        </a>
+        <a href="products.html" class="nav-btn ghost" aria-label="Cart"><i data-lucide="shopping-cart"></i></a>
+        <a href="dashboard.html" class="nav-btn solid"><i data-lucide="layout-dashboard"></i><span>Dashboard</span></a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== HERO ===== -->
+  <section class="hero" id="home">
+    <div class="hero-glow-follow" id="heroGlow"></div>
+    <div class="hero-grid"></div>
+
+    <div class="hero-content reveal">
+      <a href="https://discord.gg/m7Z9Jyp6pf" target="_blank" rel="noopener" class="badge">
+        <span class="badge-discord">
+          <svg class="brand" viewBox="0 0 127.14 96.36" fill="currentColor"><path d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0a105.89 105.89 0 0 0-26.25 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53s5-12.74 11.43-12.74S54 46 53.89 53s-5.05 12.69-11.44 12.69Zm42.24 0C78.41 65.69 73.25 60 73.25 53s5-12.74 11.44-12.74S96.23 46 96.12 53s-5.04 12.69-11.43 12.69Z"/></svg>
+        </span>
+        <span class="badge-text">Robux, Crypto, &amp; Free Keys</span>
+        <span class="badge-dot"></span>
+        <span class="badge-join">Join Discord</span>
+        <i data-lucide="arrow-right" class="badge-arrow"></i>
+      </a>
+
+      <h1 class="hero-title">
+        <span class="hero-line">#1 market for</span>
+        <span class="hero-gradient" id="typewriter" data-text="your playstyle."><span class="tw-text"></span><span class="tw-caret"></span></span>
+      </h1>
+
+      <p class="hero-desc">
+        riots.wtf is a place where anyone anywhere can get keys for their externals, scripts,
+        executors, software and keep updated and UD every day with the best support team for your needs.
+      </p>
+
+      <div class="hero-buttons">
+        <a href="products.html" class="btn btn-gradient"><span>Browse Products</span><i data-lucide="arrow-right"></i></a>
+        <a href="#features" class="btn btn-bw">Learn More</a>
+      </div>
+
+      <div class="hero-trust">
+        <span><i data-lucide="zap"></i> Instant Delivery</span>
+        <span class="sep"></span>
+        <span><i data-lucide="lock"></i> Secure Checkout</span>
+        <span class="sep"></span>
+        <span><i data-lucide="clock"></i> 24/7 Support</span>
+        <span class="sep"></span>
+        <span><i data-lucide="shield-check"></i> Always UD</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== TOP PICKS ===== -->
+  <section class="products-preview" id="products">
+    <div class="section-head reveal">
+      <span class="eyebrow">Top Picks</span>
+      <h2 class="section-title">Best sellers <span class="grad">right now</span></h2>
+    </div>
+
+    <div class="product-grid" id="homeProductGrid">
+      <!-- injected by JS -->
+    </div>
+
+    <div class="products-cta reveal">
+      <a href="products.html" class="btn btn-gradient wide"><span>Browse All Products</span><i data-lucide="arrow-right"></i></a>
+    </div>
+  </section>
+
+  <!-- ===== FEATURES ===== -->
+  <section class="features" id="features">
+    <div class="section-head reveal">
+      <span class="eyebrow">Why riots</span>
+      <h2 class="section-title">All for <span class="grad">you.</span></h2>
+    </div>
+
+    <div class="features-grid reveal">
+      <div class="feature-card secure-card">
+        <div class="matrix" id="matrix"></div>
+        <div class="feature-card-body">
+          <div class="lock-icon"><i data-lucide="shield-check"></i></div>
+          <h3>Secure for you</h3>
+          <p>Encrypted checkout, protected delivery, and zero data kept longer than needed.</p>
+        </div>
+      </div>
+
+      <div class="feature-card payments-card">
+        <div class="feature-card-body">
+          <h3>Our payments:</h3>
+          <p class="pay-sub">Pay however you like — we support them all.</p>
+          <div class="pay-grid">
+            <div class="pay-chip">Bitcoin</div>
+            <div class="pay-chip">Ethereum</div>
+            <div class="pay-chip">Litecoin</div>
+            <div class="pay-chip">Mastercard</div>
+            <div class="pay-chip">Stripe</div>
+            <div class="pay-chip">Robux</div>
+            <div class="pay-chip">Gift Cards</div>
+            <div class="pay-chip">Discord Nitro</div>
+            <div class="pay-chip">Key Enhance</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-grid reveal">
+      <div class="stat-card">
+        <div class="stat-stars">★★★★★</div>
+        <div class="stat-num">50+</div>
+        <div class="stat-label">Trusted Buyers</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-stars">★★★★★</div>
+        <div class="stat-num">5.0</div>
+        <div class="stat-label">Average Rating</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-stars">★★★★★</div>
+        <div class="stat-num">Instant</div>
+        <div class="stat-label">Delivery</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Q&A ===== -->
+  <section class="qa" id="faq">
+    <div class="qa-left reveal">
+      <span class="eyebrow">FAQ</span>
+      <h2 class="section-title">Questions <span class="grad">&amp; answers.</span></h2>
+      <p class="qa-desc">Still stuck? Our team lives in the Discord and replies fast.</p>
+      <a href="https://discord.gg/m7Z9Jyp6pf" target="_blank" rel="noopener" class="btn btn-gradient">
+        <svg class="brand" viewBox="0 0 127.14 96.36" fill="currentColor"><path d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0a105.89 105.89 0 0 0-26.25 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53s5-12.74 11.43-12.74S54 46 53.89 53s-5.05 12.69-11.44 12.69Zm42.24 0C78.41 65.69 73.25 60 73.25 53s5-12.74 11.44-12.74S96.23 46 96.12 53s-5.04 12.69-11.43 12.69Z"/></svg>
+        <span>Join Discord</span>
+      </a>
+    </div>
+
+    <div class="qa-right reveal">
+      <div class="qa-item">
+        <button class="qa-q"><span>Do you offer refunds?</span><i data-lucide="chevron-down"></i></button>
+        <div class="qa-a">
+          <p>Due to the digital nature of keys, we don't offer refunds once a key has been delivered. If there's a genuine issue with your order, reach out on Discord and we'll sort it.</p>
+        </div>
+      </div>
+      <div class="qa-item">
+        <button class="qa-q"><span>What if my key doesn't work?</span><i data-lucide="chevron-down"></i></button>
+        <div class="qa-a">
+          <p>Contact us on Discord straight away. We'll verify your order and either replace the key or resolve the issue — usually within minutes.</p>
+        </div>
+      </div>
+      <div class="qa-item">
+        <button class="qa-q"><span>How do I receive my key after purchase?</span><i data-lucide="chevron-down"></i></button>
+        <div class="qa-a">
+          <p>Your key is delivered instantly and automatically the moment your payment confirms. You'll receive it on-screen and via email — no waiting, no manual steps.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FOOTER (shared) ===== -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <img src="gui.png" alt="riots.wtf" class="footer-logo" />
+        <p>The #1 market for keys, scripts, executors &amp; software. Updated &amp; UD every day.</p>
+        <div class="footer-socials">
+          <a href="https://discord.gg/m7Z9Jyp6pf" target="_blank" rel="noopener" aria-label="Discord"><svg class="brand" viewBox="0 0 127.14 96.36" fill="currentColor"><path d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0a105.89 105.89 0 0 0-26.25 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53s5-12.74 11.43-12.74S54 46 53.89 53s-5.05 12.69-11.44 12.69Zm42.24 0C78.41 65.69 73.25 60 73.25 53s5-12.74 11.44-12.74S96.23 46 96.12 53s-5.04 12.69-11.43 12.69Z"/></svg></a>
+          <a href="https://www.youtube.com/@riotsoffical" target="_blank" rel="noopener" aria-label="YouTube"><svg class="brand" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.5a3 3 0 0 0-2.1-2.1C19.5 3.9 12 3.9 12 3.9s-7.5 0-9.4.5A3 3 0 0 0 .5 6.5 31.4 31.4 0 0 0 0 12a31.4 31.4 0 0 0 .5 5.5 3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1A31.4 31.4 0 0 0 24 12a31.4 31.4 0 0 0-.5-5.5ZM9.6 15.6V8.4l6.2 3.6-6.2 3.6Z"/></svg></a>
+          <a href="https://www.tiktok.com/@riots.wtf" target="_blank" rel="noopener" aria-label="TikTok"><svg class="brand" viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 5.6a4.9 4.9 0 0 1-1.15-2.6H12.4v11.9a2.6 2.6 0 1 1-2.15-2.56V9.4A5.4 5.4 0 1 0 15.2 15V9.05a7.6 7.6 0 0 0 4.3 1.33V7.4a4.9 4.9 0 0 1-3-1.8Z"/></svg></a>
+        </div>
+      </div>
+      <div class="footer-col">
+        <h4>Navigate</h4>
+        <a href="index.html">Home</a>
+        <a href="products.html">Products</a>
+        <a href="status.html">Status</a>
+        <a href="referral.html">Referral Program</a>
+      </div>
+      <div class="footer-col">
+        <h4>Legal</h4>
+        <a href="#">Terms of Service</a>
+        <a href="#">Refund Policy</a>
+        <a href="#">Privacy Policy</a>
+      </div>
+      <div class="footer-col">
+        <h4>Support</h4>
+        <a href="https://discord.gg/m7Z9Jyp6pf" target="_blank" rel="noopener">Discord</a>
+        <a href="index.html#faq">FAQ</a>
+        <a href="dashboard.html">Dashboard</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 riots.wtf — All rights reserved.</span>
+      <span>Payments secured by <a href="https://komerza.com" target="_blank" rel="noopener">Komerza</a> 🔴</span>
+    </div>
+  </footer>
+
+  <!-- Public config (API base + Komerza public IDs). Safe to expose. -->
+  <script src="config.js"></script>
+  <!-- Lucide icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Komerza Embed SDK -->
+  <script src="https://cdn.komerza.com/komerza.min.js" defer></script>
+  <script src="script.js" defer></script>
+</body>
+</html>

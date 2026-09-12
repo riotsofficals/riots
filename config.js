@@ -7,7 +7,7 @@ window.RIOTS_CONFIG = {
   },
   KOMERZA: {
     storeId: "e2f2de20-0a61-4634-aaba-a2e4d476bcd9",
-    productId: "REPLACE_WITH_PRODUCT_ID",
+    productId: "7ae81450-e948-4647-9b6f-6cc6cc5c1c79",
     variants: {
       lifetime: "b5b90fd3-db55-4f73-943a-3a6625edee46",
       monthly:  "3a1b2e3a-4151-4ccb-859e-f0803ef09cc9",

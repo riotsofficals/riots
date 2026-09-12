@@ -37,6 +37,75 @@ function renderIcons() {
   }
 }
 
+/* ---------------- Custom dropdowns ----------------
+   Wraps every native <select> in a styled widget while keeping the real
+   <select> hidden and in sync, so existing .value reads/writes keep working. */
+function closeAllSelects(except) {
+  document.querySelectorAll('.csel.open').forEach((c) => { if (c !== except) c.classList.remove('open'); });
+}
+document.addEventListener('click', () => closeAllSelects(null));
+
+function enhanceSelect(sel) {
+  if (!sel || sel.dataset.enhanced === '1') return;
+  sel.dataset.enhanced = '1';
+  const wrap = document.createElement('div');
+  wrap.className = 'csel';
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'csel-trigger';
+  const label = document.createElement('span');
+  label.className = 'csel-label';
+  const caret = document.createElement('i');
+  caret.setAttribute('data-lucide', 'chevron-down');
+  trigger.appendChild(label);
+  trigger.appendChild(caret);
+  const menu = document.createElement('div');
+  menu.className = 'csel-menu';
+
+  const opts = [...sel.options];
+  const syncLabel = () => {
+    const o = sel.options[sel.selectedIndex];
+    label.textContent = o ? o.textContent : '';
+    menu.querySelectorAll('.csel-opt').forEach((el) => el.classList.toggle('sel', el.dataset.value === sel.value));
+  };
+  opts.forEach((o) => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'csel-opt';
+    item.dataset.value = o.value;
+    item.textContent = o.textContent;
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sel.value = o.value;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      syncLabel();
+      wrap.classList.remove('open');
+    });
+    menu.appendChild(item);
+  });
+
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const willOpen = !wrap.classList.contains('open');
+    closeAllSelects(wrap);
+    wrap.classList.toggle('open', willOpen);
+  });
+
+  // Insert the widget right after the (now hidden) native select.
+  sel.classList.add('csel-native');
+  sel.parentNode.insertBefore(wrap, sel.nextSibling);
+  wrap.appendChild(trigger);
+  wrap.appendChild(menu);
+  syncLabel();
+  // keep label in sync if code sets .value programmatically then fires change
+  sel.addEventListener('change', syncLabel);
+}
+
+function enhanceSelects(root = document) {
+  root.querySelectorAll('select:not([data-enhanced])').forEach(enhanceSelect);
+  renderIcons();
+}
+
 async function api(path, { method = 'GET', body, admin = false } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (admin && ADMIN_KEY) headers['x-admin-key'] = ADMIN_KEY;
@@ -389,6 +458,7 @@ function renderReferralDashboard(panel, ref) {
   panel.innerHTML = `
     <div class="ref-card">
       <div class="ref-card-head"><h3>Your referral link</h3><span class="admin-badge">active</span></div>
+      <span class="ref-code-label">Share this link</span>
       <div class="ref-code-row">
         <code id="refLinkVal">${esc(link)}</code>
         <button class="btn btn-bw sm" id="refCopy" type="button"><i data-lucide="copy"></i><span>Copy</span></button>
@@ -735,13 +805,14 @@ async function loadAdmin() {
     row.querySelector('.sr-state').value = ['up', 'warn', 'down', 'maintenance'].includes(svc.state) ? svc.state : 'up';
     row.querySelector('.sr-remove').addEventListener('click', () => { row.remove(); });
     statusRows.appendChild(row);
+    enhanceSelects(row);
     renderIcons();
   };
   $('#adAddService').addEventListener('click', () => addServiceRow());
 
   // Prefill rows from the current published status.
   api('/api/content/status').then(({ status }) => {
-    if (status && status.overall) $('#adOverall').value = status.overall;
+    if (status && status.overall) { $('#adOverall').value = status.overall; $('#adOverall').dispatchEvent(new Event('change')); }
     const svcs = (status && status.services) || [];
     if (svcs.length) svcs.forEach(addServiceRow); else addServiceRow();
   }).catch(() => addServiceRow());
@@ -846,6 +917,7 @@ async function loadAdmin() {
   });
 
   renderIcons();
+  enhanceSelects(area);
   loadAdminProducts();
   loadAdminDiscounts();
   loadAdminTickets();

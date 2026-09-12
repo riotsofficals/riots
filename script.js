@@ -9,6 +9,55 @@ function renderIcons() {
   }
 }
 
+/* ---------- Custom dropdowns (public pages) ----------
+   Wraps native <select> in a styled widget, keeps the real select in sync. */
+function closeAllSelects(except) {
+  document.querySelectorAll('.csel.open').forEach((c) => { if (c !== except) c.classList.remove('open'); });
+}
+document.addEventListener('click', () => closeAllSelects(null));
+function enhanceSelect(sel) {
+  if (!sel || sel.dataset.enhanced === '1') return;
+  sel.dataset.enhanced = '1';
+  const wrap = document.createElement('div');
+  wrap.className = 'csel';
+  const trigger = document.createElement('button');
+  trigger.type = 'button'; trigger.className = 'csel-trigger';
+  const label = document.createElement('span'); label.className = 'csel-label';
+  const caret = document.createElement('i'); caret.setAttribute('data-lucide', 'chevron-down');
+  trigger.appendChild(label); trigger.appendChild(caret);
+  const menu = document.createElement('div'); menu.className = 'csel-menu';
+  const syncLabel = () => {
+    const o = sel.options[sel.selectedIndex];
+    label.textContent = o ? o.textContent : '';
+    menu.querySelectorAll('.csel-opt').forEach((el) => el.classList.toggle('sel', el.dataset.value === sel.value));
+  };
+  [...sel.options].forEach((o) => {
+    const item = document.createElement('button');
+    item.type = 'button'; item.className = 'csel-opt'; item.dataset.value = o.value; item.textContent = o.textContent;
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sel.value = o.value;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      syncLabel(); wrap.classList.remove('open');
+    });
+    menu.appendChild(item);
+  });
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const willOpen = !wrap.classList.contains('open');
+    closeAllSelects(wrap); wrap.classList.toggle('open', willOpen);
+  });
+  sel.classList.add('csel-native');
+  sel.parentNode.insertBefore(wrap, sel.nextSibling);
+  wrap.appendChild(trigger); wrap.appendChild(menu);
+  syncLabel();
+  sel.addEventListener('change', syncLabel);
+}
+function enhanceSelects(root = document) {
+  root.querySelectorAll('select:not([data-enhanced])').forEach(enhanceSelect);
+  renderIcons();
+}
+
 /* ---------- PAGE LOAD ANIMATION (no preloader) ---------- */
 function initLoad() {
   renderIcons();
@@ -810,6 +859,7 @@ function renderReferralDashboard(panel, ref) {
         <h3>Your referral link</h3>
         <span class="admin-badge">active</span>
       </div>
+      <span class="ref-code-label">Share this link</span>
       <div class="ref-code-row">
         <code id="refLinkVal">${esc(link)}</code>
         <button class="btn btn-bw sm" id="refCopy" type="button"><i data-lucide="copy"></i><span>Copy</span></button>
@@ -905,4 +955,5 @@ document.addEventListener('DOMContentLoaded', () => {
   initStatus();
   initReferral();
   trackReferralVisit();
+  enhanceSelects();
 });

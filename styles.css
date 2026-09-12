@@ -428,6 +428,8 @@ body.loaded .navbar { transform: translateX(-50%) translateY(0); }
 .dtab.active { color: #fff; background: linear-gradient(120deg, rgba(255,43,43,.22), rgba(255,43,43,.08)); box-shadow: inset 0 0 0 1px rgba(255,43,43,.35); }
 .dtab.logout { margin-left: auto; }
 .dtab.logout:hover { color: var(--red-2); }
+/* the [hidden] attribute must win over the display rules above */
+.dtab[hidden], .dview[hidden] { display: none !important; }
 
 .dview { animation: reveal-up .4s ease; }
 
@@ -820,32 +822,55 @@ body.loaded .navbar { transform: translateX(-50%) translateY(0); }
 }
 
 /* ===================== REFERRAL: real signup panel ===================== */
-.ref-panel { width: 100%; max-width: 520px; margin: 26px auto 0; min-height: 120px; }
+.ref-panel { width: 100%; max-width: 540px; margin: 26px auto 0; min-height: 120px; }
 .ref-card {
+  position: relative; overflow: hidden;
   border: 1px solid var(--line-red); border-radius: var(--radius-lg);
-  background: linear-gradient(180deg, var(--panel), var(--bg-2));
-  padding: 24px; box-shadow: 0 14px 44px rgba(255,43,43,.12); text-align: left;
+  background:
+    radial-gradient(120% 80% at 50% -20%, rgba(255,43,43,.14), transparent 60%),
+    linear-gradient(180deg, var(--panel), var(--bg-2));
+  padding: 26px; box-shadow: 0 18px 50px rgba(255,43,43,.14); text-align: left;
 }
-.ref-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-.ref-card-head h3 { font-size: 17px; margin: 0; }
+/* glowing accent bar across the top */
+.ref-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--grad-red); box-shadow: 0 0 18px rgba(255,43,43,.6);
+}
+.ref-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.ref-card-head h3 { font-size: 18px; margin: 0; font-weight: 800; }
+.ref-card .ref-note { color: var(--muted); font-size: 13px; line-height: 1.55; margin: 6px 0 16px; }
 .ref-card input {
   width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line);
-  background: rgba(0,0,0,.25); color: #fff; margin-bottom: 10px; font-size: 14px;
+  background: rgba(0,0,0,.3); color: #fff; margin-bottom: 10px; font-size: 14px;
   transition: border-color .2s, box-shadow .2s;
 }
+.ref-card input::placeholder { color: var(--muted-2); }
 .ref-card input:focus { border-color: var(--red); box-shadow: 0 0 0 3px rgba(255,43,43,.15); outline: none; }
 .ref-card .btn.wide { width: 100%; }
-.ref-code-row { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; }
-.ref-code-row code {
-  flex: 1; font-family: var(--mono); font-size: 13px; color: #fff;
-  background: rgba(255,43,43,.1); padding: 11px 13px; border-radius: 10px;
-  border: 1px solid var(--line-red); word-break: break-all;
+
+.ref-code-label { display: block; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-2); margin-bottom: 8px; }
+.ref-code-row {
+  display: flex; gap: 8px; align-items: stretch; margin-bottom: 18px;
+  background: rgba(0,0,0,.28); border: 1px solid var(--line-red); border-radius: 12px; padding: 6px;
 }
-.ref-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
-.ref-stat { border: 1px solid var(--line); border-radius: 12px; background: rgba(0,0,0,.2); padding: 14px; text-align: center; }
-.ref-stat .rs-val { font-size: 20px; font-weight: 800; color: #fff; }
-.ref-stat .rs-label { color: var(--muted-2); font-size: 11px; margin-top: 3px; text-transform: uppercase; letter-spacing: .05em; }
+.ref-code-row code {
+  flex: 1; display: flex; align-items: center; font-family: var(--mono); font-size: 13px; color: #fff;
+  padding: 8px 12px; word-break: break-all; background: none; border: none;
+}
+.ref-code-row .btn { white-space: nowrap; }
+
+.ref-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.ref-stat {
+  border: 1px solid var(--line); border-radius: 14px; background: rgba(0,0,0,.22);
+  padding: 16px 12px; text-align: center; transition: border-color .2s, transform .2s;
+}
+.ref-stat:hover { border-color: var(--line-red); transform: translateY(-2px); }
+.ref-stat .rs-val { font-size: 24px; font-weight: 800; color: #fff; line-height: 1; }
+.ref-stat .rs-label { color: var(--muted-2); font-size: 10.5px; margin-top: 6px; text-transform: uppercase; letter-spacing: .06em; }
 .ref-error { color: #ff6b6b; font-size: 13px; margin-top: 4px; }
+
+/* copy button success pulse */
+.ref-copied { color: var(--green) !important; }
 
 /* ===================== ADMIN: SellAuth-style layout ===================== */
 .adm { display: grid; grid-template-columns: 210px 1fr; gap: 20px; align-items: start; }
@@ -922,3 +947,74 @@ body.loaded .navbar { transform: translateX(-50%) translateY(0); }
 @media (max-width: 480px) {
   .adm-stats { grid-template-columns: 1fr; }
 }
+
+/* ===================== LEGAL / DOC PAGES ===================== */
+.legal-wrap { max-width: 860px; margin: 0 auto; padding: 120px 22px 80px; }
+.legal-head { margin-bottom: 34px; }
+.legal-tag {
+  display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--red-2); background: rgba(255,43,43,.1); border: 1px solid var(--line-red);
+  padding: 5px 12px; border-radius: 99px; margin-bottom: 16px;
+}
+.legal-head h1 { font-size: 40px; font-weight: 900; line-height: 1.05; }
+.legal-head h1 .grad { background: var(--grad-red); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.legal-updated { color: var(--muted-2); font-size: 13.5px; margin-top: 12px; }
+.legal-body {
+  border: 1px solid var(--line); border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, var(--panel), var(--bg-2)); padding: 34px 38px;
+}
+.legal-body h2 { font-size: 20px; font-weight: 800; margin: 30px 0 12px; color: #fff; }
+.legal-body h2:first-child { margin-top: 0; }
+.legal-body p, .legal-body li { color: var(--muted); font-size: 15px; line-height: 1.7; }
+.legal-body p { margin-bottom: 14px; }
+.legal-body ul { margin: 0 0 16px; padding-left: 22px; }
+.legal-body li { margin-bottom: 8px; }
+.legal-body a { color: var(--red-2); }
+.legal-body strong { color: #fff; }
+.legal-body .legal-note {
+  border-left: 3px solid var(--red); background: rgba(255,43,43,.06);
+  padding: 14px 18px; border-radius: 0 12px 12px 0; margin: 18px 0; color: var(--muted);
+}
+@media (max-width: 620px) {
+  .legal-head h1 { font-size: 30px; }
+  .legal-body { padding: 24px 20px; }
+}
+
+/* ===================== CUSTOM DROPDOWNS ===================== */
+/* the real <select> stays in the DOM (for .value) but is visually hidden */
+select.csel-native { display: none !important; }
+.csel { position: relative; width: 100%; margin-bottom: 10px; }
+.csel-trigger {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 11px 14px; border-radius: 12px; border: 1px solid var(--line);
+  background: rgba(0,0,0,.28); color: #fff; font-family: var(--font); font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: border-color .2s, box-shadow .2s;
+}
+.csel-trigger:hover { border-color: var(--line-red); }
+.csel.open .csel-trigger { border-color: var(--red); box-shadow: 0 0 0 3px rgba(255,43,43,.15); }
+.csel-trigger .csel-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.csel-trigger i, .csel-trigger .lucide { width: 16px; height: 16px; color: var(--muted); flex-shrink: 0; transition: transform .2s; }
+.csel.open .csel-trigger i, .csel.open .csel-trigger .lucide { transform: rotate(180deg); color: var(--red-2); }
+
+.csel-menu {
+  position: absolute; z-index: 50; top: calc(100% + 6px); left: 0; right: 0;
+  border: 1px solid var(--line-red); border-radius: 12px; overflow: hidden;
+  background: linear-gradient(180deg, var(--panel), var(--bg-2));
+  box-shadow: 0 16px 40px rgba(0,0,0,.5);
+  opacity: 0; transform: translateY(-6px); pointer-events: none; transition: opacity .15s, transform .15s;
+}
+.csel.open .csel-menu { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.csel-opt {
+  display: block; width: 100%; text-align: left; padding: 11px 14px; border: none; background: none;
+  color: var(--muted); font-family: var(--font); font-size: 14px; cursor: pointer; transition: all .15s;
+}
+.csel-opt:hover { background: rgba(255,43,43,.1); color: #fff; }
+.csel-opt.sel { color: #fff; background: rgba(255,43,43,.14); box-shadow: inset 3px 0 0 var(--red); }
+
+/* inside compact status rows: keep the widget tidy */
+.status-row .csel { margin-bottom: 0; }
+
+/* store sort: keep the pill look + auto width in the toolbar */
+.store-sort .csel { width: auto; min-width: 190px; margin-bottom: 0; }
+.store-sort .csel-trigger { border-radius: 99px; padding: 11px 16px; font-size: 13px; font-weight: 600; }
+@media (max-width: 620px) { .store-sort .csel { width: 100%; } }

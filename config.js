@@ -2,8 +2,8 @@ window.RIOTS_CONFIG = {
   API_BASE: "https://riotswtf-production.up.railway.app",
   CLIENT_TOKEN: "",
   CLOUDINARY: {
-    cloudName: "",
-    uploadPreset: "",
+    cloudName: "ra3jxm6w",
+    uploadPreset: "riotswtf",
   },
   KOMERZA: {
     storeId: "e2f2de20-0a61-4634-aaba-a2e4d476bcd9",

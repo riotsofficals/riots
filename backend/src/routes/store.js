@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { komerza } from '../komerza.js';
 import { store } from '../store.js';
-import { requireAdmin } from '../auth.js';
+import { requireAdmin, requireAuth } from '../auth.js';
 
 const router = Router();
 const asyncH = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -58,6 +58,81 @@ router.patch('/products/:id', requireAdmin, (req, res) => {
 router.delete('/products/:id', requireAdmin, (req, res) => {
   const products = store.removeProduct(req.params.id);
   res.json({ success: true, products });
+});
+
+/* ============================================================
+   DISCOUNT CODES — admin only
+   ============================================================ */
+router.get('/discounts', requireAdmin, (req, res) => {
+  res.json({ success: true, discounts: store.getDiscounts() });
+});
+
+const discountSchema = z.object({
+  code: z.string().trim().min(3).max(32),
+  type: z.enum(['percent', 'fixed']).optional(),
+  amount: z.number().min(0).max(100000),
+  note: z.string().max(120).optional(),
+  active: z.boolean().optional(),
+});
+router.post('/discounts', requireAdmin, (req, res) => {
+  const data = discountSchema.parse(req.body);
+  const item = store.addDiscount(data);
+  res.json({ success: true, discount: item });
+});
+router.delete('/discounts/:id', requireAdmin, (req, res) => {
+  const discounts = store.removeDiscount(req.params.id);
+  res.json({ success: true, discounts });
+});
+
+/* ============================================================
+   TICKETS — users create/view their own; admin sees all
+   ============================================================ */
+const ticketSchema = z.object({
+  subject: z.string().trim().min(1).max(120),
+  message: z.string().trim().min(1).max(4000),
+});
+
+// user: my tickets
+router.get('/tickets/mine', requireAuth, (req, res) => {
+  res.json({ success: true, tickets: store.getTickets(req.user.discordId) });
+});
+// user: open a ticket
+router.post('/tickets', requireAuth, (req, res) => {
+  const data = ticketSchema.parse(req.body);
+  const t = store.addTicket({
+    discordId: req.user.discordId,
+    username: req.user.username || req.user.globalName || '',
+    subject: data.subject,
+    message: data.message,
+  });
+  res.json({ success: true, ticket: t });
+});
+// user: reply to own ticket
+router.post('/tickets/:id/reply', requireAuth, (req, res) => {
+  const owned = store.getTickets(req.user.discordId).some((t) => t.id === req.params.id);
+  if (!owned) return res.status(404).json({ success: false, message: 'Ticket not found.' });
+  const message = String(req.body.message || '').trim();
+  if (!message) return res.status(400).json({ success: false, message: 'Message required.' });
+  const t = store.replyTicket(req.params.id, { from: 'user', message });
+  res.json({ success: true, ticket: t });
+});
+
+// admin: all tickets
+router.get('/tickets', requireAdmin, (req, res) => {
+  res.json({ success: true, tickets: store.getTickets() });
+});
+// admin: reply / set status
+router.post('/tickets/:id/admin-reply', requireAdmin, (req, res) => {
+  const message = String(req.body.message || '').trim();
+  const status = req.body.status;
+  const t = store.replyTicket(req.params.id, { from: 'staff', message, status });
+  if (!t) return res.status(404).json({ success: false, message: 'Ticket not found.' });
+  res.json({ success: true, ticket: t });
+});
+router.patch('/tickets/:id/status', requireAdmin, (req, res) => {
+  const t = store.setTicketStatus(req.params.id, req.body.status === 'closed' ? 'closed' : 'open');
+  if (!t) return res.status(404).json({ success: false, message: 'Ticket not found.' });
+  res.json({ success: true, ticket: t });
 });
 
 export default router;

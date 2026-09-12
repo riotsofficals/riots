@@ -52,6 +52,9 @@ export const config = {
     // Public product ID (safe to be public; also used to read stock).
     productId: process.env.KOMERZA_PRODUCT_ID || '',
     baseUrl: process.env.KOMERZA_BASE_URL || 'https://api.komerza.com',
+    // Public variant IDs for the seeded rivals product (safe to expose).
+    variantLifetime: process.env.KOMERZA_VARIANT_LIFETIME || 'b5b90fd3-db55-4f73-943a-3a6625edee46',
+    variantMonthly: process.env.KOMERZA_VARIANT_MONTHLY || '3a1b2e3a-4151-4ccb-859e-f0803ef09cc9',
   },
 
   dataDir: process.env.DATA_DIR || './data',

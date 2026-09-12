@@ -149,9 +149,9 @@ An unsigned preset is safe to be public — it can only upload images, nothing e
 ## Part 5 — Using the admin dashboard
 
 1. Go to `https://YOUR_VERCEL_URL/dashboard.html`.
-2. The page is blurred behind an "Authenticate" box. Click **I have an admin key**
-   and enter the `ADMIN_KEY` you set in Railway. (Normal users log in with Discord
-   instead.)
+2. The page is blurred behind an "Authenticate" box. Click **Admin sign-in**
+   and enter the `ADMIN_KEY` you set in Railway. (Normal users click **I need to
+   register my key**, enter their key, then link it with **Auth my Discord**.)
 3. Open the **Admin** tab. You can:
    - **Products** — create/edit/delete products. For each product you enter:
      - name, category, prices, badge, description
@@ -160,10 +160,25 @@ An unsigned preset is safe to be public — it can only upload images, nothing e
 
      👉 **Yes — every product you add has its own Komerza product id + variant ids.**
      That's how each product checks out to the right Komerza product. (The IDs in
-     `config.js` are only the fallback for the built-in default product.)
+     `config.js` are only the fallback for the built-in default product. A default
+     "riots.wtf rivals script" product is auto-created on first boot, and it's
+     fully editable here.)
+   - **Discount codes** — create codes (percent or fixed) buyers enter at checkout.
+   - **Support tickets** — see every user ticket, reply, and open/close it.
    - **Manage keys / users**, **Generate keys**, **Status updater**, **Devlog**.
 
 Products you create show up automatically on `products.html` with sorting/search.
+
+### How buying works (cart + checkout)
+- On `products.html`, each product has **Add to cart** (and the detail page's Buy
+  button also adds to cart). A cart drawer opens from the nav cart icon.
+- In the cart the buyer enters their **email** (for delivery) and an optional
+  **discount code**, then **Checkout** redirects them to Komerza's hosted payment
+  page. Stock and payment are handled by Komerza.
+
+### Users: profile & tickets
+Logged-in users get a **Profile** tab (Discord profile, key stats, reset-my-HWID)
+and a **Tickets** tab to open and reply to support tickets.
 
 ---
 

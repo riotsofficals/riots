@@ -139,9 +139,75 @@ $$('#dashTabs .dtab[data-view]').forEach((btn) => {
     $$('.dview').forEach((v) => (v.hidden = v.dataset.view !== view));
     if (view === 'updates') loadUpdates();
     if (view === 'status') loadStatus();
+    if (view === 'tickets') loadTickets();
+    if (view === 'referral') loadReferral();
     if (view === 'admin') loadAdmin();
   });
 });
+
+/* ---------------- TICKETS (user) ---------------- */
+async function loadTickets() {
+  const area = $('#ticketsArea');
+  if (!area) return;
+  area.innerHTML = `
+    <div class="ticket-new">
+      <h3>Open a support ticket</h3>
+      <input type="text" id="tkSubject" placeholder="Subject" />
+      <textarea id="tkMessage" rows="4" placeholder="Describe your issue..."></textarea>
+      <button class="btn btn-gradient" id="tkCreate"><i data-lucide="send"></i><span>Submit ticket</span></button>
+      <p class="cart-note" id="tkMsg"></p>
+    </div>
+    <div id="tkList" class="ticket-list"><div class="dash-loading"><span></span><span></span><span></span></div></div>`;
+  renderIcons();
+
+  $('#tkCreate').addEventListener('click', async () => {
+    const subject = $('#tkSubject').value.trim();
+    const message = $('#tkMessage').value.trim();
+    const msg = $('#tkMsg');
+    if (!subject || !message) { msg.textContent = 'Subject and message are required.'; return; }
+    try {
+      await api('/api/store/tickets', { method: 'POST', body: { subject, message } });
+      $('#tkSubject').value = ''; $('#tkMessage').value = '';
+      msg.textContent = 'Ticket submitted.';
+      renderTicketList();
+    } catch (e) { msg.textContent = e.message; }
+  });
+
+  renderTicketList();
+}
+
+async function renderTicketList() {
+  const list = $('#tkList');
+  if (!list) return;
+  try {
+    const r = await api('/api/store/tickets/mine');
+    const items = r.tickets || [];
+    if (!items.length) { list.innerHTML = `<div class="empty">No tickets yet.</div>`; return; }
+    list.innerHTML = items.map((t) => `
+      <div class="ticket-card" data-id="${esc(t.id)}">
+        <div class="tc-head">
+          <strong>${esc(t.subject)}</strong>
+          <span class="ticket-status ${t.status === 'open' ? 'open' : 'closed'}">${esc(t.status)}</span>
+        </div>
+        <p class="at-msg">${esc(t.message)}</p>
+        ${(t.replies || []).map((rp) => `<p class="at-reply ${rp.from === 'staff' ? 'staff' : ''}"><b>${rp.from === 'staff' ? 'Staff' : 'You'}:</b> ${esc(rp.message)}</p>`).join('')}
+        ${t.status === 'open' ? `
+        <div class="at-actions">
+          <input type="text" placeholder="Reply..." data-reply />
+          <button class="mini" data-send>Reply</button>
+        </div>` : ''}
+      </div>`).join('');
+    list.querySelectorAll('.ticket-card').forEach((row) => {
+      const send = row.querySelector('[data-send]');
+      if (send) send.addEventListener('click', async () => {
+        const message = row.querySelector('[data-reply]').value.trim();
+        if (!message) return;
+        try { await api('/api/store/tickets/' + row.dataset.id + '/reply', { method: 'POST', body: { message } }); renderTicketList(); }
+        catch (e) { alert(e.message); }
+      });
+    });
+  } catch (e) { list.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
 
 /* ---------------- USER DASHBOARD ---------------- */
 async function loadUserDashboard() {
@@ -278,6 +344,71 @@ function renderProfile(data) {
   renderIcons();
 }
 
+/* ---------------- REFERRAL ---------------- */
+function refLink(code) {
+  const origin = location.origin.includes('file') ? 'https://riots.wtf' : location.origin;
+  return origin + '/products.html?ref=' + encodeURIComponent(code);
+}
+async function loadReferral() {
+  const panel = $('#refPanel');
+  if (!panel) return;
+  panel.innerHTML = `<div class="dash-loading"><span></span><span></span><span></span></div>`;
+  try {
+    const { referral } = await api('/api/referral/me');
+    if (referral) renderReferralDashboard(panel, referral);
+    else renderReferralSignup(panel);
+  } catch (e) {
+    panel.innerHTML = `<div class="ref-card"><p class="ref-error">Couldn't load referral. ${esc(e.message)}</p></div>`;
+  }
+}
+function renderReferralDashboard(panel, ref) {
+  const link = refLink(ref.code);
+  panel.innerHTML = `
+    <div class="ref-card">
+      <div class="ref-card-head"><h3>Your referral link</h3><span class="admin-badge">active</span></div>
+      <div class="ref-code-row">
+        <code id="refLinkVal">${esc(link)}</code>
+        <button class="btn btn-bw sm" id="refCopy" type="button"><i data-lucide="copy"></i><span>Copy</span></button>
+      </div>
+      <div class="ref-stats">
+        <div class="ref-stat"><div class="rs-val">${ref.clicks || 0}</div><div class="rs-label">Clicks</div></div>
+        <div class="ref-stat"><div class="rs-val">${ref.signups || 0}</div><div class="rs-label">Signups</div></div>
+        <div class="ref-stat"><div class="rs-val">$${Number(ref.earnings || 0).toFixed(2)}</div><div class="rs-label">Earned</div></div>
+      </div>
+      <p class="ref-note">Your code is <strong>${esc(ref.code)}</strong>. Share your link anywhere to start earning.</p>
+    </div>`;
+  renderIcons();
+  const copyBtn = panel.querySelector('#refCopy');
+  if (copyBtn) copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(link).then(() => {
+      const s = copyBtn.querySelector('span'); const old = s.textContent;
+      s.textContent = 'Copied!'; setTimeout(() => (s.textContent = old), 1500);
+    });
+  });
+}
+function renderReferralSignup(panel) {
+  panel.innerHTML = `
+    <div class="ref-card">
+      <div class="ref-card-head"><h3>Join the referral program</h3></div>
+      <p class="ref-note">Pick a code and tell us where to send payouts. You'll get a shareable link tied to your account.</p>
+      <input type="text" id="refWantedCode" placeholder="Preferred code (e.g. RIOTSVIP)" maxlength="20" />
+      <input type="text" id="refPayout" placeholder="Payout method (PayPal / crypto / etc.)" maxlength="200" />
+      <button class="btn btn-gradient wide" id="refJoin" type="button"><span>Create my link</span></button>
+      <p class="ref-error" id="refErr" hidden></p>
+    </div>`;
+  renderIcons();
+  panel.querySelector('#refJoin').addEventListener('click', async () => {
+    const code = panel.querySelector('#refWantedCode').value.trim();
+    const payout = panel.querySelector('#refPayout').value.trim();
+    const errEl = panel.querySelector('#refErr');
+    errEl.hidden = true;
+    try {
+      const { referral } = await api('/api/referral/signup', { method: 'POST', body: { code, payout } });
+      renderReferralDashboard(panel, referral);
+    } catch (e) { errEl.textContent = e.message || 'Could not sign up.'; errEl.hidden = false; }
+  });
+}
+
 /* ---------------- UPDATES / DEVLOG ---------------- */
 async function loadUpdates() {
   const area = $('#updatesArea');
@@ -315,7 +446,7 @@ async function loadStatus() {
         ${svcs.length ? svcs.map((s) => `
           <div class="status-row">
             <div class="status-name"><strong>${esc(s.name)}</strong><small>${esc(s.desc || '')}</small></div>
-            <span class="status-pill ${s.state === 'up' ? 'up' : 'warn'}"><span class="dot"></span>${s.state === 'up' ? 'Operational' : (s.state === 'down' ? 'Down' : 'Degraded')}</span>
+            <span class="status-pill ${['up','warn','down','maintenance'].includes(s.state) ? s.state : 'up'}"><span class="dot"></span>${({up:'Operational',warn:'Degraded',down:'Down',maintenance:'Maintenance'})[s.state] || 'Operational'}</span>
           </div>`).join('') : `<div class="empty">No products listed yet.</div>`}
       </div>`;
   } catch (e) {
@@ -372,7 +503,11 @@ async function loadAdmin() {
 
       <!-- Status updater -->
       <div class="admin-card">
-        <h3>Status updater</h3>
+        <div class="admin-card-head">
+          <h3>Status updater</h3>
+          <span class="admin-badge">live</span>
+        </div>
+        <label class="admin-label">Overall status</label>
         <select id="adOverall">
           <option value="operational">Operational</option>
           <option value="degraded">Degraded</option>
@@ -380,8 +515,10 @@ async function loadAdmin() {
           <option value="down">Down</option>
           <option value="maintenance">Maintenance</option>
         </select>
-        <p class="admin-hint">Products / services (one per line: <code>Name | description | up|warn|down</code>)</p>
-        <textarea id="adServices" rows="5" placeholder="riots.wtf rivals script | Roblox Rivals | up"></textarea>
+        <label class="admin-label">Services</label>
+        <p class="admin-hint">Add each product or service and set its state. These show on the public status page.</p>
+        <div id="adStatusRows" class="status-rows"></div>
+        <button class="btn btn-bw sm" id="adAddService" type="button"><i data-lucide="plus"></i><span>Add service</span></button>
         <button class="btn btn-gradient" id="adSaveStatus"><span>Publish status</span></button>
         <div id="adStatusResult"></div>
       </div>
@@ -423,6 +560,41 @@ async function loadAdmin() {
         <button class="btn btn-gradient" id="adProdSave"><span>Save product</span></button>
         <button class="btn btn-bw" id="adProdReset"><span>Clear form</span></button>
         <div id="adProdResult"></div>
+      </div>
+
+      <!-- Devlog editor -->
+      <!-- Discount codes -->
+      <div class="admin-card">
+        <h3>Discount codes</h3>
+        <p class="admin-hint">Create codes buyers enter at checkout.</p>
+        <div class="admin-row">
+          <input type="text" id="adDiscCode" placeholder="CODE (e.g. SAVE20)" />
+          <select id="adDiscType">
+            <option value="percent">% off</option>
+            <option value="fixed">$ off</option>
+          </select>
+        </div>
+        <div class="admin-row">
+          <input type="number" id="adDiscAmount" placeholder="Amount" min="0" />
+          <input type="text" id="adDiscNote" placeholder="Note (optional)" />
+        </div>
+        <button class="btn btn-gradient" id="adDiscSave"><span>Create code</span></button>
+        <div id="adDiscResult"></div>
+        <div id="adDiscList" class="admin-list" style="margin-top:12px"></div>
+      </div>
+
+      <!-- Support tickets -->
+      <div class="admin-card">
+        <h3>Support tickets</h3>
+        <p class="admin-hint">Tickets opened by users.</p>
+        <div id="adTicketList" class="admin-list"></div>
+      </div>
+
+      <!-- Referrals -->
+      <div class="admin-card">
+        <h3>Referrals</h3>
+        <p class="admin-hint">People signed up to the referral program.</p>
+        <div id="adRefList" class="admin-list"></div>
       </div>
 
       <!-- Devlog editor -->
@@ -469,13 +641,42 @@ async function loadAdmin() {
     } catch (e) { $('#adGenResult').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
   });
 
-  // Status
+  // Status — editable rows
+  const statusRows = $('#adStatusRows');
+  const addServiceRow = (svc = { name: '', desc: '', state: 'up' }) => {
+    const row = document.createElement('div');
+    row.className = 'status-row';
+    row.innerHTML = `
+      <input type="text" class="sr-name" placeholder="Service name" value="${esc(svc.name || '')}" />
+      <input type="text" class="sr-desc" placeholder="Short description" value="${esc(svc.desc || '')}" />
+      <select class="sr-state">
+        <option value="up">Operational</option>
+        <option value="warn">Degraded</option>
+        <option value="down">Down</option>
+        <option value="maintenance">Maintenance</option>
+      </select>
+      <button type="button" class="sr-remove" aria-label="Remove"><i data-lucide="trash-2"></i></button>`;
+    row.querySelector('.sr-state').value = ['up', 'warn', 'down', 'maintenance'].includes(svc.state) ? svc.state : 'up';
+    row.querySelector('.sr-remove').addEventListener('click', () => { row.remove(); });
+    statusRows.appendChild(row);
+    renderIcons();
+  };
+  $('#adAddService').addEventListener('click', () => addServiceRow());
+
+  // Prefill rows from the current published status.
+  api('/api/content/status').then(({ status }) => {
+    if (status && status.overall) $('#adOverall').value = status.overall;
+    const svcs = (status && status.services) || [];
+    if (svcs.length) svcs.forEach(addServiceRow); else addServiceRow();
+  }).catch(() => addServiceRow());
+
   $('#adSaveStatus').addEventListener('click', async () => {
     const overall = $('#adOverall').value;
-    const services = $('#adServices').value.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => {
-      const [name, desc, state] = l.split('|').map((x) => (x || '').trim());
-      return { name, desc: desc || '', state: ['up', 'warn', 'down', 'maintenance'].includes(state) ? state : 'up' };
-    });
+    const services = [...statusRows.querySelectorAll('.status-row')].map((row) => ({
+      name: row.querySelector('.sr-name').value.trim(),
+      desc: row.querySelector('.sr-desc').value.trim(),
+      state: row.querySelector('.sr-state').value,
+    })).filter((s) => s.name);
     try {
       await api('/api/content/status', { method: 'PUT', body: { overall, services }, admin: true });
       $('#adStatusResult').innerHTML = `<div class="ok-note">Status published.</div>`;
@@ -552,7 +753,114 @@ async function loadAdmin() {
   });
   $('#adProdReset').addEventListener('click', resetProdForm);
 
+  // Discount codes
+  $('#adDiscSave').addEventListener('click', async () => {
+    const code = $('#adDiscCode').value.trim();
+    const type = $('#adDiscType').value;
+    const amount = parseFloat($('#adDiscAmount').value);
+    const note = $('#adDiscNote').value.trim();
+    if (!code || isNaN(amount)) { $('#adDiscResult').innerHTML = `<div class="empty">Code + amount required.</div>`; return; }
+    try {
+      await api('/api/store/discounts', { method: 'POST', body: { code, type, amount, note }, admin: true });
+      $('#adDiscResult').innerHTML = `<div class="ok-note">Code created.</div>`;
+      $('#adDiscCode').value = ''; $('#adDiscAmount').value = ''; $('#adDiscNote').value = '';
+      loadAdminDiscounts();
+    } catch (e) { $('#adDiscResult').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+  });
+
   loadAdminProducts();
+  loadAdminDiscounts();
+  loadAdminTickets();
+  loadAdminReferrals();
+}
+
+async function loadAdminReferrals() {
+  const list = $('#adRefList');
+  if (!list) return;
+  list.innerHTML = `<div class="dash-loading"><span></span><span></span><span></span></div>`;
+  try {
+    const r = await api('/api/referral', { admin: true });
+    const items = r.referrals || [];
+    if (!items.length) { list.innerHTML = `<div class="empty">No referrals yet.</div>`; return; }
+    list.innerHTML = items.map((ref) => `
+      <div class="admin-key" data-id="${esc(ref.id)}">
+        <div class="ak-main">
+          <code>${esc(ref.code)}</code>
+          <div class="ap-sub">${esc(ref.username || ref.discordId)} · ${ref.clicks || 0} clicks · ${ref.signups || 0} signups${ref.payout ? ' · ' + esc(ref.payout) : ''}</div>
+        </div>
+        <button class="mini danger" data-act="del">Delete</button>
+      </div>`).join('');
+    list.querySelectorAll('.admin-key').forEach((row) => {
+      row.querySelector('[data-act="del"]').addEventListener('click', async () => {
+        if (!confirm('Delete this referral?')) return;
+        try { await api('/api/referral/' + row.dataset.id, { method: 'DELETE', admin: true }); loadAdminReferrals(); }
+        catch (e) { alert(e.message); }
+      });
+    });
+  } catch (e) { list.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
+async function loadAdminDiscounts() {
+  const list = $('#adDiscList');
+  if (!list) return;
+  try {
+    const r = await api('/api/store/discounts', { admin: true });
+    const items = r.discounts || [];
+    if (!items.length) { list.innerHTML = `<div class="empty">No codes yet.</div>`; return; }
+    list.innerHTML = items.map((d) => `
+      <div class="admin-key" data-id="${esc(d.id)}">
+        <div class="ak-main">
+          <code>${esc(d.code)}</code>
+          <div class="ak-sub">${d.type === 'fixed' ? '$' + d.amount + ' off' : d.amount + '% off'}${d.note ? ' · ' + esc(d.note) : ''}</div>
+        </div>
+        <div class="ak-actions"><button class="mini danger" data-del>Delete</button></div>
+      </div>`).join('');
+    list.querySelectorAll('.admin-key').forEach((row) => {
+      row.querySelector('[data-del]').addEventListener('click', async () => {
+        try { await api('/api/store/discounts/' + row.dataset.id, { method: 'DELETE', admin: true }); loadAdminDiscounts(); }
+        catch (e) { alert(e.message); }
+      });
+    });
+  } catch (e) { list.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
+async function loadAdminTickets() {
+  const list = $('#adTicketList');
+  if (!list) return;
+  try {
+    const r = await api('/api/store/tickets', { admin: true });
+    const items = r.tickets || [];
+    if (!items.length) { list.innerHTML = `<div class="empty">No tickets.</div>`; return; }
+    list.innerHTML = items.map((t) => `
+      <div class="admin-ticket" data-id="${esc(t.id)}">
+        <div class="at-head">
+          <strong>${esc(t.subject)}</strong>
+          <span class="ticket-status ${t.status === 'open' ? 'open' : 'closed'}">${esc(t.status)}</span>
+        </div>
+        <div class="ak-sub">@${esc(t.username || t.discordId)} · ${fmtDate(t.createdAt)}</div>
+        <p class="at-msg">${esc(t.message)}</p>
+        ${(t.replies || []).map((rp) => `<p class="at-reply ${rp.from === 'staff' ? 'staff' : ''}"><b>${rp.from === 'staff' ? 'Staff' : 'User'}:</b> ${esc(rp.message)}</p>`).join('')}
+        <div class="at-actions">
+          <input type="text" placeholder="Reply..." data-reply />
+          <button class="mini" data-send>Reply</button>
+          <button class="mini" data-toggle>${t.status === 'open' ? 'Close' : 'Reopen'}</button>
+        </div>
+      </div>`).join('');
+    list.querySelectorAll('.admin-ticket').forEach((row) => {
+      const id = row.dataset.id;
+      row.querySelector('[data-send]').addEventListener('click', async () => {
+        const msg = row.querySelector('[data-reply]').value.trim();
+        if (!msg) return;
+        try { await api('/api/store/tickets/' + id + '/admin-reply', { method: 'POST', body: { message: msg }, admin: true }); loadAdminTickets(); }
+        catch (e) { alert(e.message); }
+      });
+      row.querySelector('[data-toggle]').addEventListener('click', async () => {
+        const cur = row.querySelector('.ticket-status').textContent;
+        try { await api('/api/store/tickets/' + id + '/status', { method: 'PATCH', body: { status: cur === 'open' ? 'closed' : 'open' }, admin: true }); loadAdminTickets(); }
+        catch (e) { alert(e.message); }
+      });
+    });
+  } catch (e) { list.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
 async function loadAdminProducts() {

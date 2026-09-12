@@ -45,6 +45,8 @@
           <button class="dtab" data-view="keys"><i data-lucide="key-round"></i> My Keys</button>
           <button class="dtab" data-view="updates"><i data-lucide="megaphone"></i> Updates</button>
           <button class="dtab" data-view="status"><i data-lucide="activity"></i> Status</button>
+          <button class="dtab" data-view="tickets"><i data-lucide="life-buoy"></i> Tickets</button>
+          <button class="dtab" data-view="referral"><i data-lucide="gift"></i> Referral</button>
           <button class="dtab admin-only" data-view="admin" hidden><i data-lucide="shield"></i> Admin</button>
           <button class="dtab logout" id="logoutBtn"><i data-lucide="log-out"></i> Logout</button>
         </div>
@@ -68,6 +70,16 @@
         <!-- STATUS VIEW -->
         <section class="dview" data-view="status" hidden>
           <div id="statusArea"></div>
+        </section>
+
+        <!-- TICKETS VIEW -->
+        <section class="dview" data-view="tickets" hidden>
+          <div id="ticketsArea"></div>
+        </section>
+
+        <!-- REFERRAL VIEW -->
+        <section class="dview" data-view="referral" hidden>
+          <div id="refPanel"><div class="dash-loading"><span></span><span></span><span></span></div></div>
         </section>
 
         <!-- ADMIN VIEW -->

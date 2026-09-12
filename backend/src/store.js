@@ -113,6 +113,162 @@ export const store = {
     write('products', list);
     return list;
   },
+  // Ensure the default rivals-script product exists (idempotent upsert by id).
+  // Runs on every boot: creates p_rivals if missing, and refreshes its Komerza
+  // IDs from config if they were previously blank. Never clobbers admin edits
+  // to name/price/description/image once those have been changed.
+  seedProducts(seed) {
+    const list = read('products', []);
+    const existing = list.find((p) => p.id === 'p_rivals');
+    if (existing) {
+      // Backfill Komerza IDs if the admin hasn't set them yet.
+      let changed = false;
+      if (!existing.komerzaProductId && seed.komerzaProductId) {
+        existing.komerzaProductId = seed.komerzaProductId; changed = true;
+      }
+      if ((!existing.komerzaVariants || !Object.keys(existing.komerzaVariants).length) && seed.komerzaVariants) {
+        existing.komerzaVariants = seed.komerzaVariants; changed = true;
+      }
+      if (changed) write('products', list);
+      return list;
+    }
+    const item = {
+      id: 'p_rivals',
+      name: seed.name || 'riots.wtf rivals script',
+      category: seed.category || 'Roblox',
+      description: seed.description || "The most complete Rivals script on the market — aimbot, silent aim, a full ESP suite, hit effects, skin/cosmetic unlocker, spoofers and more, all in one clean draggable menu. Anti-detection built in and updated & UD every single day.",
+      price: seed.price || '$10',
+      priceMonthly: seed.priceMonthly || '$4',
+      image: seed.image || '',
+      badge: seed.badge || 'Best Seller',
+      komerzaProductId: seed.komerzaProductId || '',
+      komerzaVariants: seed.komerzaVariants || {},
+      featured: true,
+      order: 1,
+      createdAt: new Date().toISOString(),
+    };
+    list.push(item);
+    write('products', list);
+    return list;
+  },
+
+  // --- Discount codes (admin-managed) ---
+  getDiscounts() {
+    return read('discounts', []);
+  },
+  addDiscount(d) {
+    const list = read('discounts', []);
+    const item = {
+      id: 'd_' + Date.now().toString(36),
+      code: String(d.code || '').trim().toUpperCase(),
+      type: d.type === 'fixed' ? 'fixed' : 'percent', // percent | fixed
+      amount: Number(d.amount) || 0,
+      note: d.note || '',
+      active: d.active !== false,
+      createdAt: new Date().toISOString(),
+    };
+    // replace existing code if duplicate
+    const filtered = list.filter((x) => x.code !== item.code);
+    filtered.push(item);
+    write('discounts', filtered);
+    return item;
+  },
+  removeDiscount(id) {
+    const list = read('discounts', []).filter((x) => x.id !== id);
+    write('discounts', list);
+    return list;
+  },
+
+  // --- Tickets (support) ---
+  getTickets(discordId) {
+    const all = read('tickets', []);
+    return discordId ? all.filter((t) => t.discordId === discordId) : all;
+  },
+  addTicket(t) {
+    const list = read('tickets', []);
+    const item = {
+      id: 't_' + Date.now().toString(36),
+      discordId: t.discordId || '',
+      username: t.username || '',
+      subject: t.subject || 'Support request',
+      message: t.message || '',
+      status: 'open',
+      createdAt: new Date().toISOString(),
+      replies: [],
+    };
+    list.unshift(item);
+    write('tickets', list);
+    return item;
+  },
+  replyTicket(id, reply) {
+    const list = read('tickets', []);
+    const t = list.find((x) => x.id === id);
+    if (!t) return null;
+    t.replies.push({ from: reply.from || 'user', message: reply.message || '', at: new Date().toISOString() });
+    if (reply.status) t.status = reply.status;
+    write('tickets', list);
+    return t;
+  },
+  setTicketStatus(id, status) {
+    const list = read('tickets', []);
+    const t = list.find((x) => x.id === id);
+    if (!t) return null;
+    t.status = status;
+    write('tickets', list);
+    return t;
+  },
+
+  // --- Referral program ---
+  getReferrals() {
+    return read('referrals', []);
+  },
+  getReferralByDiscord(discordId) {
+    return read('referrals', []).find((r) => r.discordId === discordId) || null;
+  },
+  getReferralByCode(code) {
+    const c = String(code || '').trim().toUpperCase();
+    return read('referrals', []).find((r) => r.code === c) || null;
+  },
+  addReferral(r) {
+    const list = read('referrals', []);
+    // one referral account per Discord user
+    const existing = list.find((x) => x.discordId === r.discordId);
+    if (existing) return existing;
+    // generate a unique code from the requested handle (or random)
+    const base = String(r.code || r.username || 'ref')
+      .toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10) || 'REF';
+    let code = base;
+    let n = 1;
+    while (list.some((x) => x.code === code)) { code = base + n; n++; }
+    const item = {
+      id: 'r_' + Date.now().toString(36),
+      discordId: r.discordId,
+      username: r.username || '',
+      email: r.email || '',
+      payout: r.payout || '',
+      code,
+      clicks: 0,
+      signups: 0,
+      earnings: 0,
+      createdAt: new Date().toISOString(),
+    };
+    list.push(item);
+    write('referrals', list);
+    return item;
+  },
+  trackReferralClick(code) {
+    const list = read('referrals', []);
+    const r = list.find((x) => x.code === String(code || '').trim().toUpperCase());
+    if (!r) return null;
+    r.clicks = (r.clicks || 0) + 1;
+    write('referrals', list);
+    return r;
+  },
+  removeReferral(id) {
+    const list = read('referrals', []).filter((x) => x.id !== id);
+    write('referrals', list);
+    return list;
+  },
 
   // --- Discord ID -> key link cache (source of truth is the provider) ---
   getLinks() {

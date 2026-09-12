@@ -307,6 +307,31 @@ function apiHeaders(extra = {}) {
   return h;
 }
 
+/* ---------- Komerza Embed SDK ----------
+   Loaded from checkout.komerza.com/embed/embed.iife.js — exposes window.Komerza
+   with init() and open({items, theme, couponCode}). Opens a modal, no email
+   prompt needed (Komerza collects it). */
+function komerzaSDK() { return window.Komerza || null; }
+let _komerzaInited = false;
+function komerzaInit() {
+  const k = komerzaSDK();
+  if (k && !_komerzaInited && typeof k.init === 'function') {
+    try { k.init(); _komerzaInited = true; } catch (_) {}
+  }
+  return k;
+}
+// Open the checkout modal for a set of items. Each item: {productId, variantId, quantity}.
+function komerzaOpen(items, opts = {}) {
+  const k = komerzaInit();
+  if (!k || typeof k.open !== 'function') {
+    alert('Checkout is still loading — try again in a second.');
+    return false;
+  }
+  k.open({ items, theme: (KMRZA && KMRZA.theme) || 'dark', ...opts });
+  return true;
+}
+function isValidEmail(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
+
 // Fallback product shown if the backend has no catalog yet (uses config Komerza IDs).
 const DEFAULT_PRODUCT = {
   id: 'default',
@@ -428,11 +453,32 @@ function renderStoreGrid() {
           <div class="store-card-stock in">In stock</div>
         </div>
       </div>
+      <button class="store-card-add" data-add aria-label="Add to cart"><i data-lucide="shopping-cart"></i> Add to cart</button>
     </article>`).join('');
   grid.querySelectorAll('.store-card').forEach(card => {
-    card.addEventListener('click', () => {
-      const p = STORE_PRODUCTS.find(x => x.id === card.dataset.id);
+    const p = STORE_PRODUCTS.find(x => x.id === card.dataset.id);
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('[data-add]')) return; // add button handled below
       if (p) openProduct(p);
+    });
+    const addBtn = card.querySelector('[data-add]');
+    if (addBtn) addBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!p) return;
+      const vid = (p.komerzaVariants && (p.komerzaVariants.lifetime || p.komerzaVariants.monthly)) || '';
+      const pid = p.komerzaProductId || KMRZA.productId;
+      if (!isReal(pid) || !isReal(vid)) {
+        alert('This product isn\u2019t connected to Komerza yet.');
+        return;
+      }
+      addToCart({
+        id: pid + ':' + vid,
+        productId: pid, variantId: vid,
+        name: p.name + (p.komerzaVariants && p.komerzaVariants.lifetime ? ' \u2014 Lifetime' : ''),
+        price: p.price || p.priceMonthly,
+        image: p.image,
+      });
+      openCart();
     });
   });
   renderIcons();
@@ -472,8 +518,7 @@ function openProduct(p) {
 
 function bindCheckout(p) {
   const plansWrap = document.getElementById('pdPlans');
-  const buyBtn = document.getElementById('buyBtn');
-  const buyLabel = document.getElementById('buyLabel');
+  let buyBtn = document.getElementById('buyBtn');
   if (!plansWrap || !buyBtn) return;
 
   const productId = p.komerzaProductId || KMRZA.productId;
@@ -482,8 +527,15 @@ function bindCheckout(p) {
     lifetime: `Buy Lifetime — ${p.price || ''}`.trim(),
     monthly: `Buy Monthly — ${p.priceMonthly || ''}`.trim(),
   };
+
+  // Clone the buy button FIRST to drop old listeners, THEN query the label
+  // from the live button (fixes the label not updating after re-render).
+  const freshBtn = buyBtn.cloneNode(true);
+  buyBtn.replaceWith(freshBtn);
+  buyBtn = freshBtn;
+  const getLabel = () => buyBtn.querySelector('#buyLabel');
+
   currentPlan = 'lifetime';
-  if (isReal(productId)) buyBtn.setAttribute('data-kmrza-product-id', productId);
 
   const selectPlan = (plan) => {
     currentPlan = plan;
@@ -492,34 +544,32 @@ function bindCheckout(p) {
       pl.classList.toggle('selected', on);
       const radio = pl.querySelector('input'); if (radio) radio.checked = on;
     });
-    if (buyLabel) buyLabel.textContent = labels[plan] || 'Buy';
-    const vid = variants[plan];
-    if (isReal(vid)) buyBtn.setAttribute('data-kmrza-variant-id', vid);
+    const lbl = getLabel();
+    if (lbl) lbl.textContent = labels[plan] || 'Buy';
   };
-  // rebind cleanly by cloning nodes to drop old listeners
+
+  // rebind plan cards cleanly
   plansWrap.querySelectorAll('.plan').forEach(pl => {
     const clone = pl.cloneNode(true); pl.replaceWith(clone);
     clone.addEventListener('click', () => selectPlan(clone.dataset.plan));
   });
+  // hide the monthly plan if the product has no monthly variant
+  const monthlyCard = plansWrap.querySelector('.plan[data-plan="monthly"]');
+  if (monthlyCard) monthlyCard.hidden = !isReal(variants.monthly);
+
   selectPlan('lifetime');
 
-  const newBtn = buyBtn.cloneNode(true); buyBtn.replaceWith(newBtn);
-  newBtn.addEventListener('click', (e) => {
+  buyBtn.addEventListener('click', (e) => {
+    e.preventDefault();
     const vid = variants[currentPlan];
-    if (window.Komerza && typeof window.Komerza.open === 'function' && isReal(productId)) {
-      e.preventDefault();
-      const item = { productId };
-      if (isReal(vid)) item.variantId = vid;
-      window.Komerza.open({ items: [item], theme: KMRZA.theme || 'dark' });
-    } else if (!isReal(productId)) {
-      e.preventDefault();
-      alert('Checkout goes live once the Komerza product ID is set (config.js / product settings).');
+    if (!isReal(productId) || !isReal(vid)) {
+      alert('This product isn\u2019t connected to Komerza yet. Add its product + variant IDs in the admin dashboard (or config.js).');
+      return;
     }
+    komerzaOpen([{ productId, variantId: vid, quantity: 1 }]);
   });
 
-  if (window.Komerza && typeof window.Komerza.init === 'function') {
-    try { window.Komerza.init(); } catch (_) {}
-  }
+  komerzaInit();
 }
 
 /* ---------- Live stock (backend reads Komerza securely) ---------- */
@@ -544,6 +594,120 @@ async function loadLiveStock(product) {
 }
 
 /* ============================================================
+   CART
+   ============================================================ */
+const CART_KEY = 'riots_cart';
+let CART = [];
+function cartLoad() { try { CART = JSON.parse(localStorage.getItem(CART_KEY)) || []; } catch { CART = []; } }
+function cartSave() { localStorage.setItem(CART_KEY, JSON.stringify(CART)); updateCartBadge(); }
+function cartCount() { return CART.reduce((n, i) => n + (i.qty || 1), 0); }
+function priceNumOf(s) { const n = parseFloat(String(s).replace(/[^\d.]/g, '')); return isNaN(n) ? 0 : n; }
+
+function addToCart(item) {
+  const found = CART.find((i) => i.id === item.id);
+  if (found) found.qty = (found.qty || 1) + 1;
+  else CART.push({ ...item, qty: 1 });
+  cartSave();
+  renderCart();
+}
+function removeFromCart(id) { CART = CART.filter((i) => i.id !== id); cartSave(); renderCart(); }
+function setQty(id, qty) {
+  const it = CART.find((i) => i.id === id);
+  if (!it) return;
+  it.qty = Math.max(1, qty);
+  cartSave(); renderCart();
+}
+
+function ensureCartUI() {
+  if (document.getElementById('cartDrawer')) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `
+    <div class="cart-overlay" id="cartOverlay" hidden></div>
+    <aside class="cart-drawer" id="cartDrawer" hidden aria-label="Cart">
+      <div class="cart-head">
+        <h3>Your cart</h3>
+        <button class="cart-close" id="cartClose" aria-label="Close"><i data-lucide="x"></i></button>
+      </div>
+      <div class="cart-items" id="cartItems"></div>
+      <div class="cart-foot">
+        <div class="cart-total-row"><span>Total</span><span id="cartTotal">$0.00</span></div>
+        <input type="text" id="cartCoupon" placeholder="Discount code (optional)" />
+        <button class="btn btn-gradient wide" id="cartCheckout"><i data-lucide="lock"></i><span>Checkout</span></button>
+        <p class="cart-note" id="cartMsg"></p>
+      </div>
+    </aside>`;
+  document.body.appendChild(wrap);
+  document.getElementById('cartClose').addEventListener('click', closeCart);
+  document.getElementById('cartOverlay').addEventListener('click', closeCart);
+  document.getElementById('cartCheckout').addEventListener('click', cartCheckout);
+  renderIcons();
+}
+function openCart() { ensureCartUI(); renderCart(); document.getElementById('cartOverlay').hidden = false; document.getElementById('cartDrawer').hidden = false; document.body.style.overflow = 'hidden'; }
+function closeCart() { const d = document.getElementById('cartDrawer'), o = document.getElementById('cartOverlay'); if (d) d.hidden = true; if (o) o.hidden = true; document.body.style.overflow = ''; }
+
+function renderCart() {
+  ensureCartUI();
+  const box = document.getElementById('cartItems');
+  const totalEl = document.getElementById('cartTotal');
+  if (!CART.length) {
+    box.innerHTML = `<div class="cart-empty">Your cart is empty.</div>`;
+    totalEl.textContent = '$0.00';
+  } else {
+    box.innerHTML = CART.map((i) => `
+      <div class="cart-item" data-id="${esc(i.id)}">
+        <img src="${esc(i.image || 'product1.png')}" alt="" />
+        <div class="ci-main">
+          <div class="ci-name">${esc(i.name)}</div>
+          <div class="ci-price">${esc(i.price || '')}</div>
+        </div>
+        <div class="ci-qty">
+          <button data-act="dec">-</button><span>${i.qty || 1}</span><button data-act="inc">+</button>
+        </div>
+        <button class="ci-remove" data-act="rm" aria-label="Remove"><i data-lucide="trash-2"></i></button>
+      </div>`).join('');
+    const total = CART.reduce((s, i) => s + priceNumOf(i.price) * (i.qty || 1), 0);
+    totalEl.textContent = '$' + total.toFixed(2);
+    box.querySelectorAll('.cart-item').forEach((row) => {
+      const id = row.dataset.id;
+      row.querySelector('[data-act="inc"]').addEventListener('click', () => setQty(id, (CART.find(x => x.id === id).qty || 1) + 1));
+      row.querySelector('[data-act="dec"]').addEventListener('click', () => setQty(id, (CART.find(x => x.id === id).qty || 1) - 1));
+      row.querySelector('[data-act="rm"]').addEventListener('click', () => removeFromCart(id));
+    });
+  }
+  renderIcons();
+}
+
+function cartCheckout() {
+  const msg = document.getElementById('cartMsg');
+  const coupon = document.getElementById('cartCoupon').value.trim();
+  msg.textContent = '';
+  if (!CART.length) { msg.textContent = 'Your cart is empty.'; return; }
+  const items = CART
+    .filter((i) => isReal(i.productId) && isReal(i.variantId))
+    .map((i) => ({ productId: i.productId, variantId: i.variantId, quantity: i.qty || 1 }));
+  if (!items.length) { msg.textContent = 'These items aren\u2019t connected to Komerza yet.'; return; }
+  const opts = coupon ? { couponCode: coupon } : {};
+  const ok = komerzaOpen(items, opts);
+  if (ok) { msg.textContent = 'Opening secure checkout...'; closeCart(); }
+}
+
+function updateCartBadge() {
+  document.querySelectorAll('[data-cart-badge]').forEach((b) => {
+    const n = cartCount();
+    b.textContent = n;
+    b.hidden = n === 0;
+  });
+}
+function initCart() {
+  cartLoad();
+  updateCartBadge();
+  // wire any nav cart buttons to open the drawer
+  document.querySelectorAll('[data-open-cart]').forEach((el) => {
+    el.addEventListener('click', (e) => { e.preventDefault(); openCart(); });
+  });
+}
+
+/* ============================================================
    STATUS PAGE
    ============================================================ */
 const SERVICES = [
@@ -553,38 +717,154 @@ const SERVICES = [
   { name: 'Discord bot', desc: 'Support & role sync', state: 'up' },
   { name: 'Website & dashboard', desc: 'Store front + My Keys', state: 'up' },
 ];
-function initStatus() {
+function statusBars(state) {
+  let out = '';
+  for (let i = 0; i < 30; i++) {
+    let cls = '';
+    if (state === 'warn' && i > 26) cls = 'warn';
+    if (state === 'down' && i > 20) cls = 'down';
+    out += `<span class="${cls}"></span>`;
+  }
+  return out;
+}
+function statusPillLabel(state) {
+  return { up: 'Operational', warn: 'Degraded', down: 'Down', maintenance: 'Maintenance' }[state] || 'Operational';
+}
+function renderStatusGrid(grid, services) {
+  grid.innerHTML = services.map((s) => {
+    const state = ['up', 'warn', 'down', 'maintenance'].includes(s.state) ? s.state : 'up';
+    return `
+    <div class="status-row">
+      <div class="status-name"><strong>${esc(s.name)}</strong><small>${esc(s.desc || '')}</small></div>
+      <div class="status-bars">${statusBars(state)}</div>
+      <span class="status-pill ${state}"><span class="dot"></span>${statusPillLabel(state)}</span>
+    </div>`;
+  }).join('');
+}
+async function initStatus() {
   const grid = document.getElementById('statusGrid');
   if (!grid) return;
-  const bars = (state) => {
-    let out = '';
-    for (let i = 0; i < 30; i++) {
-      let cls = '';
-      if (state === 'warn' && i > 26) cls = 'warn';
-      out += `<span class="${cls}"></span>`;
+  // Render the static baseline immediately, then hydrate from the backend so
+  // admin-published status shows publicly.
+  renderStatusGrid(grid, SERVICES);
+  try {
+    const res = await fetch(API_BASE + '/api/content/status', { headers: apiHeaders(), credentials: 'include' });
+    if (!res.ok) return;
+    const { status } = await res.json();
+    if (status && Array.isArray(status.services) && status.services.length) {
+      renderStatusGrid(grid, status.services);
     }
-    return out;
-  };
-  grid.innerHTML = SERVICES.map(s => `
-    <div class="status-row">
-      <div class="status-name"><strong>${s.name}</strong><small>${s.desc}</small></div>
-      <div class="status-bars">${bars(s.state)}</div>
-      <span class="status-pill ${s.state}"><span class="dot"></span>${s.state === 'up' ? 'Operational' : 'Degraded'}</span>
-    </div>`).join('');
+  } catch (_) { /* keep the static baseline */ }
 }
 
 /* ============================================================
-   REFERRAL PAGE — notify form
+   REFERRAL PAGE — real signup + dashboard
    ============================================================ */
-function initReferral() {
-  const form = document.getElementById('refNotify');
-  const note = document.getElementById('refNote');
-  if (!form) return;
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    form.style.display = 'none';
-    if (note) note.hidden = false;
+async function refApi(path, opts = {}) {
+  const res = await fetch(API_BASE + path, {
+    method: opts.method || 'GET',
+    headers: apiHeaders(opts.body ? { 'Content-Type': 'application/json' } : {}),
+    credentials: 'include',
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.success === false) {
+    const err = new Error(data.message || 'Request failed'); err.status = res.status; throw err;
+  }
+  return data;
+}
+
+function refLink(code) {
+  return location.origin + '/products.html?ref=' + encodeURIComponent(code);
+}
+
+function renderReferralDashboard(panel, ref) {
+  const link = refLink(ref.code);
+  panel.innerHTML = `
+    <div class="ref-card">
+      <div class="ref-card-head">
+        <h3>Your referral link</h3>
+        <span class="admin-badge">active</span>
+      </div>
+      <div class="ref-code-row">
+        <code id="refLinkVal">${esc(link)}</code>
+        <button class="btn btn-bw sm" id="refCopy" type="button"><i data-lucide="copy"></i><span>Copy</span></button>
+      </div>
+      <div class="ref-stats">
+        <div class="ref-stat"><div class="rs-val">${ref.clicks || 0}</div><div class="rs-label">Clicks</div></div>
+        <div class="ref-stat"><div class="rs-val">${ref.signups || 0}</div><div class="rs-label">Signups</div></div>
+        <div class="ref-stat"><div class="rs-val">$${Number(ref.earnings || 0).toFixed(2)}</div><div class="rs-label">Earned</div></div>
+      </div>
+      <p class="ref-note">Share your link anywhere. Your code is <strong>${esc(ref.code)}</strong>.</p>
+    </div>`;
+  renderIcons();
+  const copyBtn = panel.querySelector('#refCopy');
+  if (copyBtn) copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(link).then(() => {
+      const s = copyBtn.querySelector('span'); const old = s.textContent;
+      s.textContent = 'Copied!'; setTimeout(() => (s.textContent = old), 1500);
+    });
+  });
+}
+
+function renderReferralSignup(panel) {
+  panel.innerHTML = `
+    <div class="ref-card">
+      <div class="ref-card-head"><h3>Join the program</h3></div>
+      <p class="ref-note">Pick a code (letters/numbers) and add where we should send payouts.</p>
+      <input type="text" id="refWantedCode" placeholder="Preferred code (e.g. RIOTSVIP)" maxlength="20" />
+      <input type="text" id="refPayout" placeholder="Payout method (PayPal / crypto / etc.)" maxlength="200" />
+      <button class="btn btn-gradient wide" id="refJoin" type="button"><span>Create my link</span><i data-lucide="arrow-right"></i></button>
+      <p class="ref-error" id="refErr" hidden></p>
+    </div>`;
+  renderIcons();
+  panel.querySelector('#refJoin').addEventListener('click', async () => {
+    const code = panel.querySelector('#refWantedCode').value.trim();
+    const payout = panel.querySelector('#refPayout').value.trim();
+    const errEl = panel.querySelector('#refErr');
+    errEl.hidden = true;
+    try {
+      const { referral } = await refApi('/api/referral/signup', { method: 'POST', body: { code, payout } });
+      renderReferralDashboard(panel, referral);
+    } catch (e) {
+      errEl.textContent = e.message || 'Could not sign up.'; errEl.hidden = false;
+    }
+  });
+}
+
+function renderReferralLogin(panel) {
+  panel.innerHTML = `
+    <div class="ref-card">
+      <div class="ref-card-head"><h3>Sign in to join</h3></div>
+      <p class="ref-note">Connect your Discord to get a referral link tied to your account.</p>
+      <a class="btn btn-gradient wide" href="${API_BASE}/auth/discord">
+        <svg class="brand" viewBox="0 0 127.14 96.36" fill="currentColor" style="width:18px;height:18px"><path d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0a105.89 105.89 0 0 0-26.25 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53s5-12.74 11.43-12.74S54 46 53.89 53s-5.05 12.69-11.44 12.69Zm42.24 0C78.41 65.69 73.25 60 73.25 53s5-12.74 11.44-12.74S96.23 46 96.12 53s-5.04 12.69-11.43 12.69Z"/></svg>
+        <span>Sign up with Discord</span>
+      </a>
+    </div>`;
+  renderIcons();
+}
+
+async function initReferral() {
+  const panel = document.getElementById('refPanel');
+  if (!panel) return;
+  try {
+    const { referral } = await refApi('/api/referral/me');
+    if (referral) renderReferralDashboard(panel, referral);
+    else renderReferralSignup(panel);
+  } catch (e) {
+    if (e.status === 401) renderReferralLogin(panel);
+    else panel.innerHTML = `<div class="ref-card"><p class="ref-error">Couldn't reach the referral service. ${esc(e.message)}</p></div>`;
+  }
+}
+
+/* Track a ?ref=CODE visit once per browser session (any page). */
+function trackReferralVisit() {
+  const code = new URLSearchParams(location.search).get('ref');
+  if (!code) return;
+  const key = 'riots_ref_tracked';
+  try { if (sessionStorage.getItem(key) === code) return; sessionStorage.setItem(key, code); } catch (_) {}
+  refApi('/api/referral/track', { method: 'POST', body: { code } }).catch(() => {});
 }
 
 /* ---------- BOOT ---------- */
@@ -597,6 +877,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initEffects();
   initFeatureAccordion();
   initStore();
+  initCart();
   initStatus();
   initReferral();
+  trackReferralVisit();
 });

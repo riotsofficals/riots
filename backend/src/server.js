@@ -5,10 +5,12 @@ import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 
 import { config, isProd } from './config.js';
+import { store } from './store.js';
 import authRoutes from './routes/auth.js';
 import keyRoutes from './routes/keys.js';
 import contentRoutes from './routes/content.js';
 import storeRoutes from './routes/store.js';
+import referralRoutes from './routes/referral.js';
 import webhookRoutes from './routes/webhook.js';
 
 const app = express();
@@ -103,6 +105,7 @@ app.use('/auth', authRoutes);
 app.use('/api/keys', keyRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/store', storeRoutes);
+app.use('/api/referral', referralRoutes);
 
 // ---- 404 ----
 app.use((req, res) => res.status(404).json({ success: false, message: 'Not found.' }));
@@ -123,6 +126,19 @@ app.use((err, req, res, next) => {
     message: status >= 500 && isProd ? 'Internal server error.' : err.message || 'Error',
   });
 });
+
+// Seed the default rivals product on first boot (only if catalog is empty).
+try {
+  store.seedProducts({
+    komerzaProductId: config.komerza.productId,
+    komerzaVariants: {
+      lifetime: config.komerza.variantLifetime,
+      monthly: config.komerza.variantMonthly,
+    },
+  });
+} catch (e) {
+  console.warn('  ! product seed skipped:', e.message);
+}
 
 app.listen(config.port, () => {
   console.log(`riots.wtf api listening on :${config.port} (${config.env})`);

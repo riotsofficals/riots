@@ -59,4 +59,25 @@ router.put('/status', requireAdmin, (req, res) => {
   res.json({ success: true, status: saved });
 });
 
+/* ============================================================
+   ANALYTICS — public write (page view), admin read
+   ============================================================ */
+
+const pageViewSchema = z.object({
+  page: z.string().trim().min(1).max(120),
+  referrer: z.string().max(400).optional().or(z.literal('')),
+});
+
+// Public: record a page view. Fire-and-forget from the frontend.
+router.post('/pageview', (req, res) => {
+  const parsed = pageViewSchema.parse(req.body);
+  store.trackPageView({ page: parsed.page, referrer: parsed.referrer || '' });
+  res.json({ success: true });
+});
+
+// Admin: full analytics payload
+router.get('/analytics', requireAdmin, (req, res) => {
+  res.json({ success: true, analytics: store.getAnalytics() });
+});
+
 export default router;

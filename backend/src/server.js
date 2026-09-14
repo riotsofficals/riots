@@ -24,6 +24,8 @@ app.use(
   helmet({
     contentSecurityPolicy: false, // this is a JSON API, not serving HTML
     crossOriginResourcePolicy: { policy: 'cross-origin' },
+    referrerPolicy: { policy: 'no-referrer' },
+    hsts: { maxAge: 15552000, includeSubDomains: true }, // 180d HTTPS-only
   })
 );
 
@@ -71,6 +73,31 @@ const strictLimiter = rateLimit({
 });
 app.use('/auth', strictLimiter);
 app.use('/api/keys/admin', strictLimiter);
+
+// Public analytics/tracking writes are cheap but abusable to inflate counts.
+// Cap them per IP without hurting normal browsing.
+const trackLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many requests.' },
+});
+app.use('/api/content/pageview', trackLimiter);
+app.use('/api/referral/track', trackLimiter);
+
+// User-content creation (tickets, referral signup) — modest cap to stop spam.
+// Only throttle writes (POST/PATCH); reads (GET) are unaffected.
+const writeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Slow down — too many submissions.' },
+});
+const writeOnly = (limiter) => (req, res, next) => (req.method === 'GET' ? next() : limiter(req, res, next));
+app.use('/api/store/tickets', writeOnly(writeLimiter));
+app.use('/api/referral/signup', writeLimiter); // signup is POST-only
 
 // ---- Health check (Railway) ----
 app.get('/health', (req, res) => res.json({ ok: true, uptime: process.uptime() }));

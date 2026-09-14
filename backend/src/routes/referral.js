@@ -29,7 +29,7 @@ router.post('/signup', requireAuth, (req, res) => {
 });
 
 router.post('/track', (req, res) => {
-  const code = String(req.body.code || '').trim();
+  const code = String(req.body.code || '').trim().slice(0, 40);
   if (!code) return res.status(400).json({ success: false, message: 'Code required.' });
   const ref = store.trackReferralClick(code);
   res.json({ success: true, tracked: !!ref });

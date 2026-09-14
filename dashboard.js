@@ -571,6 +571,7 @@ async function loadAdmin() {
       <aside class="adm-nav">
         <div class="adm-nav-title">Admin</div>
         <button class="adm-navbtn active" data-section="overview"><i data-lucide="layout-dashboard"></i><span>Overview</span></button>
+        <button class="adm-navbtn" data-section="analytics"><i data-lucide="bar-chart-3"></i><span>Analytics</span></button>
         <button class="adm-navbtn" data-section="products"><i data-lucide="package"></i><span>Products</span></button>
         <button class="adm-navbtn" data-section="keys"><i data-lucide="key-round"></i><span>Keys &amp; users</span></button>
         <button class="adm-navbtn" data-section="discounts"><i data-lucide="ticket-percent"></i><span>Discounts</span></button>
@@ -591,10 +592,36 @@ async function loadAdmin() {
             <div class="adm-stat"><div class="as-ico"><i data-lucide="life-buoy"></i></div><div><div class="as-val" data-stat="tickets">—</div><div class="as-label">Open tickets</div></div></div>
           </div>
           <div class="adm-quick">
+            <button class="adm-quick-btn" data-goto="analytics"><i data-lucide="bar-chart-3"></i> View analytics</button>
             <button class="adm-quick-btn" data-goto="products"><i data-lucide="plus"></i> Add a product</button>
             <button class="adm-quick-btn" data-goto="keys"><i data-lucide="key-round"></i> Generate keys</button>
             <button class="adm-quick-btn" data-goto="status"><i data-lucide="activity"></i> Update status</button>
             <button class="adm-quick-btn" data-goto="devlog"><i data-lucide="megaphone"></i> Post an update</button>
+          </div>
+        </section>
+
+        <!-- ANALYTICS -->
+        <section class="adm-section" data-section="analytics" hidden>
+          <div class="adm-head"><h2>Analytics</h2><p>Page views across your site. Updated in real time as visitors land.</p></div>
+          <div class="adm-stats" id="adAnalyticsStats">
+            <div class="adm-stat"><div class="as-ico"><i data-lucide="eye"></i></div><div><div class="as-val" data-astat="total">—</div><div class="as-label">Total views</div></div></div>
+            <div class="adm-stat"><div class="as-ico"><i data-lucide="calendar"></i></div><div><div class="as-val" data-astat="today">—</div><div class="as-label">Views today</div></div></div>
+            <div class="adm-stat"><div class="as-ico"><i data-lucide="trending-up"></i></div><div><div class="as-val" data-astat="week">—</div><div class="as-label">Last 7 days</div></div></div>
+            <div class="adm-stat"><div class="as-ico"><i data-lucide="file"></i></div><div><div class="as-val" data-astat="pages">—</div><div class="as-label">Pages tracked</div></div></div>
+          </div>
+          <div class="adm-card">
+            <div class="adm-card-head"><h3>Last 14 days</h3><button class="btn btn-bw sm" id="adRefreshAnalytics" type="button"><i data-lucide="refresh-cw"></i><span>Refresh</span></button></div>
+            <div id="adAnalyticsChart" class="an-chart"></div>
+          </div>
+          <div class="an-grid">
+            <div class="adm-card">
+              <div class="adm-card-head"><h3>Top pages</h3></div>
+              <div id="adAnalyticsPages" class="an-bars"></div>
+            </div>
+            <div class="adm-card">
+              <div class="adm-card-head"><h3>Top referrers</h3></div>
+              <div id="adAnalyticsRefs" class="an-bars"></div>
+            </div>
           </div>
         </section>
 
@@ -603,6 +630,16 @@ async function loadAdmin() {
           <div class="adm-head"><h2>Products</h2><p>Create, edit and delete store products. Images upload to Cloudinary.</p></div>
           <div class="adm-card">
             <div class="adm-card-head"><h3>Catalog</h3><button class="btn btn-bw sm" id="adProdNew" type="button"><i data-lucide="plus"></i><span>New product</span></button></div>
+            <div class="adm-toolbar">
+              <input type="text" id="adProdSearch" class="adm-search" placeholder="Search name or category..." />
+              <select id="adProdSort">
+                <option value="order">Default order</option>
+                <option value="name">Name A–Z</option>
+                <option value="price-asc">Price: low → high</option>
+                <option value="price-desc">Price: high → low</option>
+                <option value="featured">Featured first</option>
+              </select>
+            </div>
             <div id="adProdList" class="admin-products"></div>
           </div>
           <div class="adm-card" id="adProdFormCard">
@@ -669,13 +706,35 @@ async function loadAdmin() {
             <div id="adKeyList" class="admin-list"></div>
           </div>
           <div class="adm-card">
+            <div class="adm-card-head">
+              <h3>Hubs &amp; scripts</h3>
+              <button class="btn btn-bw sm" id="adLoadHubs" type="button"><i data-lucide="refresh-cw"></i><span>Load</span></button>
+            </div>
+            <p class="admin-hint">Your LuaProt hubs and the scripts in each. Use the checkboxes below when generating keys to limit them to specific scripts.</p>
+            <div id="adHubsList" class="admin-hubs"></div>
+          </div>
+          <div class="adm-card">
             <div class="adm-card-head"><h3>Generate keys</h3></div>
             <div class="admin-row">
               <input type="number" id="adAmount" placeholder="Amount (5-300)" min="5" max="300" value="5" />
               <input type="number" id="adExpire" placeholder="Expire seconds (blank=lifetime)" />
             </div>
+            <input type="text" id="adGenNote" placeholder="Note (optional)" />
+            <label class="admin-label">Limit to scripts <span class="admin-hint" style="text-transform:none;letter-spacing:0">(none selected = access to all)</span></label>
+            <div id="adScriptPick" class="script-pick"><div class="empty">Load hubs &amp; scripts above to pick.</div></div>
             <button class="btn btn-gradient" id="adGenerate"><span>Generate</span></button>
             <div id="adGenResult"></div>
+          </div>
+          <div class="adm-card">
+            <div class="adm-card-head"><h3>Assign a key to a user</h3></div>
+            <p class="admin-hint">Create a key bound to a Discord ID, optionally limited to the scripts selected above.</p>
+            <div class="admin-row">
+              <input type="text" id="adAddDiscord" placeholder="Discord ID (numbers)" />
+              <input type="number" id="adAddExpire" placeholder="Expire seconds (blank=lifetime)" />
+            </div>
+            <input type="text" id="adAddNote" placeholder="Note (optional)" />
+            <button class="btn btn-bw" id="adAddKey"><span>Create &amp; assign</span></button>
+            <div id="adAddResult"></div>
           </div>
         </section>
 
@@ -704,13 +763,38 @@ async function loadAdmin() {
         <!-- REFERRALS -->
         <section class="adm-section" data-section="referrals" hidden>
           <div class="adm-head"><h2>Referrals</h2><p>People signed up to your referral program.</p></div>
-          <div class="adm-card"><div id="adRefList" class="admin-list"></div></div>
+          <div class="adm-card">
+            <div class="adm-toolbar">
+              <input type="text" id="adRefSearch" class="adm-search" placeholder="Search code or user..." />
+              <select id="adRefSort">
+                <option value="signups">Most signups</option>
+                <option value="clicks">Most clicks</option>
+                <option value="newest">Newest</option>
+                <option value="code">Code A–Z</option>
+              </select>
+            </div>
+            <div id="adRefList" class="admin-list"></div>
+          </div>
         </section>
 
         <!-- TICKETS -->
         <section class="adm-section" data-section="tickets" hidden>
           <div class="adm-head"><h2>Support tickets</h2><p>Tickets opened by users.</p></div>
-          <div class="adm-card"><div id="adTicketList" class="admin-list"></div></div>
+          <div class="adm-card">
+            <div class="adm-toolbar">
+              <input type="text" id="adTicketSearch" class="adm-search" placeholder="Search subject or user..." />
+              <select id="adTicketFilter">
+                <option value="all">All</option>
+                <option value="open">Open only</option>
+                <option value="closed">Closed only</option>
+              </select>
+              <select id="adTicketSort">
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+              </select>
+            </div>
+            <div id="adTicketList" class="admin-list"></div>
+          </div>
         </section>
 
         <!-- STATUS -->
@@ -759,11 +843,14 @@ async function loadAdmin() {
   const showSection = (name) => {
     $$('.adm-navbtn').forEach((b) => b.classList.toggle('active', b.dataset.section === name));
     $$('.adm-section').forEach((s) => (s.hidden = s.dataset.section !== name));
+    if (name === 'analytics') loadAnalytics();
   };
   $$('.adm-navbtn').forEach((b) => b.addEventListener('click', () => showSection(b.dataset.section)));
   $$('.adm-quick-btn').forEach((b) => b.addEventListener('click', () => showSection(b.dataset.goto)));
   const prodNew = $('#adProdNew');
   if (prodNew) prodNew.addEventListener('click', () => { if (typeof resetProdForm === 'function') resetProdForm(); $('#adProdName').focus(); });
+  const refreshAn = $('#adRefreshAnalytics');
+  if (refreshAn) refreshAn.addEventListener('click', loadAnalytics);
 
   // My key lookup
   $('#adLookup').addEventListener('click', async () => {
@@ -779,16 +866,50 @@ async function loadAdmin() {
   $('#adSearch').addEventListener('click', searchAdminKeys);
   searchAdminKeys();
 
+  // Hubs & scripts + script picker
+  $('#adLoadHubs').addEventListener('click', loadAdminHubs);
+  loadAdminHubs();
+
+  const selectedScripts = () =>
+    $$('#adScriptPick input[type="checkbox"]:checked').map((c) => c.value);
+
   // Generate
   $('#adGenerate').addEventListener('click', async () => {
     const amount = parseInt($('#adAmount').value, 10) || 5;
     const expireRaw = $('#adExpire').value.trim();
+    const note = $('#adGenNote').value.trim();
+    const scripts = selectedScripts();
     const body = { amount };
     if (expireRaw) body.expire = parseInt(expireRaw, 10);
+    if (note) body.note = note;
+    if (scripts.length) body.limitedScripts = scripts;
+    const btn = $('#adGenerate'); btn.disabled = true;
     try {
       const r = await api('/api/keys/admin/generate', { method: 'POST', body, admin: true });
-      $('#adGenResult').innerHTML = `<div class="ok-note">Generated ${r.keys?.length || 0} keys.</div><textarea rows="4" readonly>${esc((r.keys || []).join('\n'))}</textarea>`;
+      const limited = scripts.length ? ` <span class="ok-note-sub">(limited to ${scripts.length} script${scripts.length > 1 ? 's' : ''})</span>` : '';
+      $('#adGenResult').innerHTML = `<div class="ok-note">Generated ${r.keys?.length || 0} keys.${limited}</div><textarea rows="4" readonly>${esc((r.keys || []).join('\n'))}</textarea>`;
     } catch (e) { $('#adGenResult').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+    finally { btn.disabled = false; }
+  });
+
+  // Assign a key to a Discord user
+  $('#adAddKey').addEventListener('click', async () => {
+    const discordId = $('#adAddDiscord').value.trim();
+    const expireRaw = $('#adAddExpire').value.trim();
+    const note = $('#adAddNote').value.trim();
+    const scripts = selectedScripts();
+    if (!/^\d{5,25}$/.test(discordId)) { $('#adAddResult').innerHTML = `<div class="empty">Enter a valid Discord ID (numbers only).</div>`; return; }
+    const body = { discordId };
+    if (expireRaw) body.expire = parseInt(expireRaw, 10);
+    if (note) body.note = note;
+    if (scripts.length) body.limitedScripts = scripts;
+    const btn = $('#adAddKey'); btn.disabled = true;
+    try {
+      await api('/api/keys/admin/add', { method: 'POST', body, admin: true });
+      $('#adAddResult').innerHTML = `<div class="ok-note">Key created and assigned to ${esc(discordId)}.</div>`;
+      $('#adAddDiscord').value = ''; $('#adAddNote').value = '';
+    } catch (e) { $('#adAddResult').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+    finally { btn.disabled = false; }
   });
 
   // Status — editable rows
@@ -929,6 +1050,121 @@ async function loadAdmin() {
   loadAdminStats();
 }
 
+// Normalize LuaProt's /hubs/get response into [{id,name,scripts:[{id,name}]}]
+function normalizeHubs(raw) {
+  // The provider returns the raw LuaProt shape; be defensive about field names.
+  let hubs = raw?.hubs || raw?.data || raw?.data?.hubs || raw || [];
+  if (!Array.isArray(hubs)) hubs = hubs.hubs || hubs.data || [];
+  if (!Array.isArray(hubs)) return [];
+  return hubs.map((h) => {
+    let scripts = h.scripts || h.projects || h.modules || [];
+    if (!Array.isArray(scripts)) scripts = [];
+    return {
+      id: h.id ?? h.hubId ?? h.name ?? '',
+      name: h.name ?? h.hubName ?? h.title ?? String(h.id ?? 'Hub'),
+      scripts: scripts.map((s) => ({
+        id: s.id ?? s.scriptId ?? s.name ?? '',
+        name: s.name ?? s.scriptName ?? s.title ?? String(s.id ?? 'Script'),
+      })),
+    };
+  });
+}
+
+let ADMIN_HUBS = [];
+async function loadAdminHubs() {
+  const list = $('#adHubsList');
+  const pick = $('#adScriptPick');
+  if (!list) return;
+  list.innerHTML = `<div class="dash-loading"><span></span><span></span><span></span></div>`;
+  try {
+    const r = await api('/api/keys/admin/hubs', { admin: true });
+    ADMIN_HUBS = normalizeHubs(r);
+    if (!ADMIN_HUBS.length) { list.innerHTML = `<div class="empty">No hubs found on this account.</div>`; if (pick) pick.innerHTML = `<div class="empty">No scripts available.</div>`; return; }
+    list.innerHTML = ADMIN_HUBS.map((h) => `
+      <div class="admin-hub">
+        <div class="ah-head"><i data-lucide="folder"></i> <strong>${esc(h.name)}</strong> <span class="ah-count">${h.scripts.length} script${h.scripts.length === 1 ? '' : 's'}</span></div>
+        ${h.scripts.length ? `<div class="ah-scripts">${h.scripts.map((s) => `<span class="ah-script"><i data-lucide="file-code"></i> ${esc(s.name)}</span>`).join('')}</div>` : `<div class="ah-scripts empty">No scripts in this hub.</div>`}
+      </div>`).join('');
+    // build the script picker (checkboxes) for generate/assign
+    if (pick) {
+      const allScripts = ADMIN_HUBS.flatMap((h) => h.scripts.map((s) => ({ ...s, hub: h.name })));
+      pick.innerHTML = allScripts.length
+        ? allScripts.map((s) => `
+          <label class="sp-item">
+            <input type="checkbox" value="${esc(String(s.id))}" />
+            <span class="sp-name">${esc(s.name)}</span>
+            <span class="sp-hub">${esc(s.hub)}</span>
+          </label>`).join('')
+        : `<div class="empty">No scripts available.</div>`;
+    }
+    renderIcons();
+  } catch (e) {
+    list.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+    if (pick) pick.innerHTML = `<div class="empty">Couldn't load scripts.</div>`;
+  }
+}
+
+async function loadAnalytics() {
+  const chart = $('#adAnalyticsChart');
+  if (!chart) return;
+  chart.innerHTML = `<div class="dash-loading"><span></span><span></span><span></span></div>`;
+  let a;
+  try {
+    const r = await api('/api/content/analytics', { admin: true });
+    a = r.analytics || {};
+  } catch (e) {
+    chart.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+    return;
+  }
+  const daily = a.daily || {};
+  const pages = a.pages || {};
+  const refs = a.referrers || {};
+  const today = new Date().toISOString().slice(0, 10);
+
+  // stat tiles
+  const setA = (name, val) => { const el = document.querySelector(`#adAnalyticsStats [data-astat="${name}"]`); if (el) el.textContent = val; };
+  setA('total', a.total || 0);
+  setA('today', daily[today] || 0);
+  let week = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    week += daily[d.toISOString().slice(0, 10)] || 0;
+  }
+  setA('week', week);
+  setA('pages', Object.keys(pages).length);
+
+  // last 14 days bar chart
+  const days = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    days.push({ key, label: key.slice(5), count: daily[key] || 0 });
+  }
+  const max = Math.max(1, ...days.map((d) => d.count));
+  chart.innerHTML = `<div class="an-cols">${days.map((d) => `
+    <div class="an-col" title="${d.key}: ${d.count} views">
+      <div class="an-bar" style="height:${Math.round((d.count / max) * 100)}%"></div>
+      <span class="an-colval">${d.count || ''}</span>
+      <span class="an-collabel">${d.label}</span>
+    </div>`).join('')}</div>`;
+
+  // top pages + referrers as horizontal bars
+  const renderBars = (obj, el, emptyMsg) => {
+    const entries = Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    if (!entries.length) { el.innerHTML = `<div class="empty">${emptyMsg}</div>`; return; }
+    const top = Math.max(1, ...entries.map((e) => e[1]));
+    el.innerHTML = entries.map(([name, count]) => `
+      <div class="an-barrow">
+        <span class="an-barname">${esc(name)}</span>
+        <span class="an-bartrack"><span class="an-barfill" style="width:${Math.round((count / top) * 100)}%"></span></span>
+        <span class="an-barval">${count}</span>
+      </div>`).join('');
+  };
+  renderBars(pages, $('#adAnalyticsPages'), 'No page views yet.');
+  renderBars(refs, $('#adAnalyticsRefs'), 'No referrers yet.');
+  renderIcons();
+}
+
 async function loadAdminStats() {
   const setStat = (name, val) => {
     const el = document.querySelector(`#adStats [data-stat="${name}"]`);
@@ -945,29 +1181,52 @@ async function loadAdminStats() {
   } catch (_) {}
 }
 
+let ADMIN_REFERRALS = [];
+function renderAdminReferrals() {
+  const list = $('#adRefList');
+  if (!list) return;
+  const q = ($('#adRefSearch')?.value || '').trim().toLowerCase();
+  const sort = $('#adRefSort')?.value || 'signups';
+  let items = ADMIN_REFERRALS.slice();
+  if (q) items = items.filter((r) =>
+    String(r.code || '').toLowerCase().includes(q) ||
+    String(r.username || '').toLowerCase().includes(q) ||
+    String(r.discordId || '').includes(q));
+  items.sort((a, b) => {
+    if (sort === 'clicks') return (b.clicks || 0) - (a.clicks || 0);
+    if (sort === 'newest') return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+    if (sort === 'code') return String(a.code || '').localeCompare(String(b.code || ''));
+    return (b.signups || 0) - (a.signups || 0); // signups default
+  });
+  if (!items.length) { list.innerHTML = `<div class="empty">${ADMIN_REFERRALS.length ? 'No matches.' : 'No referrals yet.'}</div>`; return; }
+  list.innerHTML = items.map((ref) => `
+    <div class="admin-key" data-id="${esc(ref.id)}">
+      <div class="ak-main">
+        <code>${esc(ref.code)}</code>
+        <div class="ap-sub">${esc(ref.username || ref.discordId)} · ${ref.clicks || 0} clicks · ${ref.signups || 0} signups${ref.payout ? ' · ' + esc(ref.payout) : ''}</div>
+      </div>
+      <button class="mini danger" data-act="del">Delete</button>
+    </div>`).join('');
+  list.querySelectorAll('.admin-key').forEach((row) => {
+    row.querySelector('[data-act="del"]').addEventListener('click', async () => {
+      if (!confirm('Delete this referral?')) return;
+      try { await api('/api/referral/' + row.dataset.id, { method: 'DELETE', admin: true }); loadAdminReferrals(); }
+      catch (e) { alert(e.message); }
+    });
+  });
+}
 async function loadAdminReferrals() {
   const list = $('#adRefList');
   if (!list) return;
   list.innerHTML = `<div class="dash-loading"><span></span><span></span><span></span></div>`;
   try {
     const r = await api('/api/referral', { admin: true });
-    const items = r.referrals || [];
-    if (!items.length) { list.innerHTML = `<div class="empty">No referrals yet.</div>`; return; }
-    list.innerHTML = items.map((ref) => `
-      <div class="admin-key" data-id="${esc(ref.id)}">
-        <div class="ak-main">
-          <code>${esc(ref.code)}</code>
-          <div class="ap-sub">${esc(ref.username || ref.discordId)} · ${ref.clicks || 0} clicks · ${ref.signups || 0} signups${ref.payout ? ' · ' + esc(ref.payout) : ''}</div>
-        </div>
-        <button class="mini danger" data-act="del">Delete</button>
-      </div>`).join('');
-    list.querySelectorAll('.admin-key').forEach((row) => {
-      row.querySelector('[data-act="del"]').addEventListener('click', async () => {
-        if (!confirm('Delete this referral?')) return;
-        try { await api('/api/referral/' + row.dataset.id, { method: 'DELETE', admin: true }); loadAdminReferrals(); }
-        catch (e) { alert(e.message); }
-      });
-    });
+    ADMIN_REFERRALS = r.referrals || [];
+    // wire controls once
+    const s = $('#adRefSearch'), so = $('#adRefSort');
+    if (s && !s.dataset.wired) { s.dataset.wired = '1'; s.addEventListener('input', renderAdminReferrals); }
+    if (so && !so.dataset.wired) { so.dataset.wired = '1'; so.addEventListener('change', renderAdminReferrals); }
+    renderAdminReferrals();
   } catch (e) { list.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
@@ -995,74 +1254,120 @@ async function loadAdminDiscounts() {
   } catch (e) { list.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
+let ADMIN_TICKETS = [];
+function renderAdminTickets() {
+  const list = $('#adTicketList');
+  if (!list) return;
+  const q = ($('#adTicketSearch')?.value || '').trim().toLowerCase();
+  const filter = $('#adTicketFilter')?.value || 'all';
+  const sort = $('#adTicketSort')?.value || 'newest';
+  let items = ADMIN_TICKETS.slice();
+  if (filter !== 'all') items = items.filter((t) => (t.status || 'open') === filter);
+  if (q) items = items.filter((t) =>
+    String(t.subject || '').toLowerCase().includes(q) ||
+    String(t.username || '').toLowerCase().includes(q) ||
+    String(t.discordId || '').includes(q));
+  items.sort((a, b) => {
+    const cmp = String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+    return sort === 'oldest' ? -cmp : cmp;
+  });
+  if (!items.length) { list.innerHTML = `<div class="empty">${ADMIN_TICKETS.length ? 'No matches.' : 'No tickets.'}</div>`; return; }
+  list.innerHTML = items.map((t) => `
+    <div class="admin-ticket" data-id="${esc(t.id)}">
+      <div class="at-head">
+        <strong>${esc(t.subject)}</strong>
+        <span class="ticket-status ${t.status === 'open' ? 'open' : 'closed'}">${esc(t.status)}</span>
+      </div>
+      <div class="ak-sub">@${esc(t.username || t.discordId)} · ${fmtDate(t.createdAt)}</div>
+      <p class="at-msg">${esc(t.message)}</p>
+      ${(t.replies || []).map((rp) => `<p class="at-reply ${rp.from === 'staff' ? 'staff' : ''}"><b>${rp.from === 'staff' ? 'Staff' : 'User'}:</b> ${esc(rp.message)}</p>`).join('')}
+      <div class="at-actions">
+        <input type="text" placeholder="Reply..." data-reply />
+        <button class="mini" data-send>Reply</button>
+        <button class="mini" data-toggle>${t.status === 'open' ? 'Close' : 'Reopen'}</button>
+      </div>
+    </div>`).join('');
+  list.querySelectorAll('.admin-ticket').forEach((row) => {
+    const id = row.dataset.id;
+    row.querySelector('[data-send]').addEventListener('click', async () => {
+      const msg = row.querySelector('[data-reply]').value.trim();
+      if (!msg) return;
+      try { await api('/api/store/tickets/' + id + '/admin-reply', { method: 'POST', body: { message: msg }, admin: true }); loadAdminTickets(); }
+      catch (e) { alert(e.message); }
+    });
+    row.querySelector('[data-toggle]').addEventListener('click', async () => {
+      const cur = row.querySelector('.ticket-status').textContent;
+      try { await api('/api/store/tickets/' + id + '/status', { method: 'PATCH', body: { status: cur === 'open' ? 'closed' : 'open' }, admin: true }); loadAdminTickets(); }
+      catch (e) { alert(e.message); }
+    });
+  });
+}
 async function loadAdminTickets() {
   const list = $('#adTicketList');
   if (!list) return;
   try {
     const r = await api('/api/store/tickets', { admin: true });
-    const items = r.tickets || [];
-    if (!items.length) { list.innerHTML = `<div class="empty">No tickets.</div>`; return; }
-    list.innerHTML = items.map((t) => `
-      <div class="admin-ticket" data-id="${esc(t.id)}">
-        <div class="at-head">
-          <strong>${esc(t.subject)}</strong>
-          <span class="ticket-status ${t.status === 'open' ? 'open' : 'closed'}">${esc(t.status)}</span>
-        </div>
-        <div class="ak-sub">@${esc(t.username || t.discordId)} · ${fmtDate(t.createdAt)}</div>
-        <p class="at-msg">${esc(t.message)}</p>
-        ${(t.replies || []).map((rp) => `<p class="at-reply ${rp.from === 'staff' ? 'staff' : ''}"><b>${rp.from === 'staff' ? 'Staff' : 'User'}:</b> ${esc(rp.message)}</p>`).join('')}
-        <div class="at-actions">
-          <input type="text" placeholder="Reply..." data-reply />
-          <button class="mini" data-send>Reply</button>
-          <button class="mini" data-toggle>${t.status === 'open' ? 'Close' : 'Reopen'}</button>
-        </div>
-      </div>`).join('');
-    list.querySelectorAll('.admin-ticket').forEach((row) => {
-      const id = row.dataset.id;
-      row.querySelector('[data-send]').addEventListener('click', async () => {
-        const msg = row.querySelector('[data-reply]').value.trim();
-        if (!msg) return;
-        try { await api('/api/store/tickets/' + id + '/admin-reply', { method: 'POST', body: { message: msg }, admin: true }); loadAdminTickets(); }
-        catch (e) { alert(e.message); }
-      });
-      row.querySelector('[data-toggle]').addEventListener('click', async () => {
-        const cur = row.querySelector('.ticket-status').textContent;
-        try { await api('/api/store/tickets/' + id + '/status', { method: 'PATCH', body: { status: cur === 'open' ? 'closed' : 'open' }, admin: true }); loadAdminTickets(); }
-        catch (e) { alert(e.message); }
-      });
-    });
+    ADMIN_TICKETS = r.tickets || [];
+    const s = $('#adTicketSearch'), f = $('#adTicketFilter'), so = $('#adTicketSort');
+    if (s && !s.dataset.wired) { s.dataset.wired = '1'; s.addEventListener('input', renderAdminTickets); }
+    if (f && !f.dataset.wired) { f.dataset.wired = '1'; f.addEventListener('change', renderAdminTickets); }
+    if (so && !so.dataset.wired) { so.dataset.wired = '1'; so.addEventListener('change', renderAdminTickets); }
+    renderAdminTickets();
   } catch (e) { list.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
+let ADMIN_PRODUCTS = [];
+function priceNum(s) { const n = parseFloat(String(s || '').replace(/[^\d.]/g, '')); return isNaN(n) ? 0 : n; }
+function renderAdminProducts() {
+  const list = $('#adProdList');
+  if (!list) return;
+  const q = ($('#adProdSearch')?.value || '').trim().toLowerCase();
+  const sort = $('#adProdSort')?.value || 'order';
+  let products = ADMIN_PRODUCTS.slice();
+  if (q) products = products.filter((p) =>
+    String(p.name || '').toLowerCase().includes(q) ||
+    String(p.category || '').toLowerCase().includes(q));
+  products.sort((a, b) => {
+    if (sort === 'name') return String(a.name || '').localeCompare(String(b.name || ''));
+    if (sort === 'price-asc') return priceNum(a.price) - priceNum(b.price);
+    if (sort === 'price-desc') return priceNum(b.price) - priceNum(a.price);
+    if (sort === 'featured') return (b.featured ? 1 : 0) - (a.featured ? 1 : 0);
+    return (a.order || 0) - (b.order || 0); // default order
+  });
+  if (!products.length) { list.innerHTML = `<div class="empty">${ADMIN_PRODUCTS.length ? 'No matches.' : 'No products yet. Add one below.'}</div>`; return; }
+  list.innerHTML = products.map(p => `
+    <div class="admin-prod" data-id="${esc(p.id)}">
+      <img src="${esc(p.image || 'product1.png')}" alt="" />
+      <div class="ap-main">
+        <div class="ap-name">${esc(p.name)} ${p.featured ? '⭐' : ''}</div>
+        <div class="ap-sub">${esc(p.category)} · ${esc(p.price || '—')}${p.priceMonthly ? ' / ' + esc(p.priceMonthly) + 'mo' : ''}</div>
+      </div>
+      <div class="ap-actions">
+        <button class="mini" data-act="edit">Edit</button>
+        <button class="mini danger" data-act="del">Delete</button>
+      </div>
+    </div>`).join('');
+  list.querySelectorAll('.admin-prod').forEach(row => {
+    const p = ADMIN_PRODUCTS.find(x => x.id === row.dataset.id);
+    row.querySelector('[data-act="edit"]').addEventListener('click', () => fillProdForm(p));
+    row.querySelector('[data-act="del"]').addEventListener('click', async () => {
+      if (!confirm('Delete "' + p.name + '"?')) return;
+      try { await api('/api/store/products/' + p.id, { method: 'DELETE', admin: true }); loadAdminProducts(); }
+      catch (e) { alert(e.message); }
+    });
+  });
+}
 async function loadAdminProducts() {
   const list = $('#adProdList');
   if (!list) return;
   list.innerHTML = `<div class="dash-loading"><span></span><span></span><span></span></div>`;
   try {
     const r = await api('/api/store/products');
-    const products = r.products || [];
-    if (!products.length) { list.innerHTML = `<div class="empty">No products yet. Add one below.</div>`; return; }
-    list.innerHTML = products.map(p => `
-      <div class="admin-prod" data-id="${esc(p.id)}">
-        <img src="${esc(p.image || 'product1.png')}" alt="" />
-        <div class="ap-main">
-          <div class="ap-name">${esc(p.name)} ${p.featured ? '⭐' : ''}</div>
-          <div class="ap-sub">${esc(p.category)} · ${esc(p.price || '—')}${p.priceMonthly ? ' / ' + esc(p.priceMonthly) + 'mo' : ''}</div>
-        </div>
-        <div class="ap-actions">
-          <button class="mini" data-act="edit">Edit</button>
-          <button class="mini danger" data-act="del">Delete</button>
-        </div>
-      </div>`).join('');
-    list.querySelectorAll('.admin-prod').forEach(row => {
-      const p = products.find(x => x.id === row.dataset.id);
-      row.querySelector('[data-act="edit"]').addEventListener('click', () => fillProdForm(p));
-      row.querySelector('[data-act="del"]').addEventListener('click', async () => {
-        if (!confirm('Delete "' + p.name + '"?')) return;
-        try { await api('/api/store/products/' + p.id, { method: 'DELETE', admin: true }); loadAdminProducts(); }
-        catch (e) { alert(e.message); }
-      });
-    });
+    ADMIN_PRODUCTS = r.products || [];
+    const s = $('#adProdSearch'), so = $('#adProdSort');
+    if (s && !s.dataset.wired) { s.dataset.wired = '1'; s.addEventListener('input', renderAdminProducts); }
+    if (so && !so.dataset.wired) { so.dataset.wired = '1'; so.addEventListener('change', renderAdminProducts); }
+    renderAdminProducts();
   } catch (e) { list.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
@@ -1127,6 +1432,7 @@ function renderAdminKeys(keys) {
         <div class="ak-sub">
           ${k.discordData ? `👤 ${esc(k.discordData.global_name || k.discordData.username)} (${esc(k.discordId)})` : (k.discordId ? `👤 ${esc(k.discordId)}` : '⚪ unassigned')}
           · exp ${k.expire ? fmtDate(k.expire) : '∞'}
+          ${Array.isArray(k.limitedScripts) && k.limitedScripts.length ? `· <span class="ak-tag">${k.limitedScripts.length} script${k.limitedScripts.length > 1 ? 's' : ''}</span>` : ''}
           ${k.blacklisted ? '· <span class="bad">blacklisted</span>' : ''}
         </div>
       </div>
@@ -1168,6 +1474,15 @@ function bindAdminKeyActions() {
   renderIcons();
   document.body.classList.add('loaded');
   showGate('start');
+
+  // record a page view (fire-and-forget)
+  fetch(API_BASE + '/api/content/pageview', {
+    method: 'POST',
+    headers: (() => { const h = { 'Content-Type': 'application/json' }; if (CLIENT_TOKEN) h['x-client-token'] = CLIENT_TOKEN; const st = getSessionToken(); if (st) h['Authorization'] = 'Bearer ' + st; return h; })(),
+    credentials: 'include',
+    body: JSON.stringify({ page: 'dashboard.html', referrer: document.referrer || '' }),
+    keepalive: true,
+  }).catch(() => {});
 
   const pendingKey = localStorage.getItem(PENDING_KEY);
 

@@ -79,6 +79,35 @@ export const store = {
     return payload;
   },
 
+  // --- Analytics (page views) ---
+  // Shape: { total, pages: {name:count}, daily: {'YYYY-MM-DD': count},
+  //          referrers: {host:count}, updatedAt }
+  trackPageView({ page, referrer } = {}) {
+    const a = read('analytics', { total: 0, pages: {}, daily: {}, referrers: {} });
+    const day = new Date().toISOString().slice(0, 10);
+    const p = String(page || 'unknown').slice(0, 120);
+    a.total = (a.total || 0) + 1;
+    a.pages[p] = (a.pages[p] || 0) + 1;
+    a.daily[day] = (a.daily[day] || 0) + 1;
+    if (referrer) {
+      let host = 'direct';
+      try { host = new URL(referrer).hostname || 'direct'; } catch { host = 'other'; }
+      host = host.slice(0, 120);
+      a.referrers[host] = (a.referrers[host] || 0) + 1;
+    }
+    // keep only the last 90 days to bound file size
+    const days = Object.keys(a.daily).sort();
+    if (days.length > 90) {
+      for (const d of days.slice(0, days.length - 90)) delete a.daily[d];
+    }
+    a.updatedAt = new Date().toISOString();
+    write('analytics', a);
+    return true;
+  },
+  getAnalytics() {
+    return read('analytics', { total: 0, pages: {}, daily: {}, referrers: {}, updatedAt: null });
+  },
+
   // --- Products (admin-managed catalog) ---
   getProducts() {
     return read('products', []);

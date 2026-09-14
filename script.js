@@ -932,6 +932,18 @@ async function initReferral() {
   }
 }
 
+/* Record a page view (fire-and-forget). */
+function trackPageView() {
+  const page = (location.pathname.split('/').pop() || 'index.html').toLowerCase() || 'index.html';
+  fetch(API_BASE + '/api/content/pageview', {
+    method: 'POST',
+    headers: apiHeaders({ 'Content-Type': 'application/json' }),
+    credentials: 'include',
+    body: JSON.stringify({ page, referrer: document.referrer || '' }),
+    keepalive: true,
+  }).catch(() => {});
+}
+
 /* Track a ?ref=CODE visit once per browser session (any page). */
 function trackReferralVisit() {
   const code = new URLSearchParams(location.search).get('ref');
@@ -955,5 +967,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initStatus();
   initReferral();
   trackReferralVisit();
+  trackPageView();
   enhanceSelects();
 });

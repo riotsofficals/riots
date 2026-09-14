@@ -33,8 +33,34 @@ function read(name, fallback) {
 
 function write(name, data) {
   const tmp = file(name) + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
-  fs.renameSync(tmp, file(name)); // atomic-ish
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
+    fs.renameSync(tmp, file(name)); // atomic-ish
+  } catch (e) {
+    console.error(`[store] ! FAILED to write ${name}.json to ${dir}: ${e.message}. If on Railway, attach a Volume and set DATA_DIR to its mount path.`);
+    throw e;
+  }
+}
+
+// Lightweight self-check used by the diagnostics endpoint.
+export function storeHealth() {
+  const probe = '_healthcheck';
+  const stamp = Date.now();
+  let writable = false;
+  let error = null;
+  try {
+    write(probe, { stamp });
+    const back = read(probe, null);
+    writable = !!back && back.stamp === stamp;
+    try { fs.unlinkSync(file(probe)); } catch (_) {}
+  } catch (e) { error = e.message; }
+  return {
+    dataDir: dir,
+    writable,
+    persistentHint: dir.startsWith('/data') || /volume/i.test(dir),
+    files: (() => { try { return fs.readdirSync(dir).filter((f) => f.endsWith('.json')); } catch { return []; } })(),
+    error,
+  };
 }
 
 export const store = {
@@ -284,19 +310,46 @@ export const store = {
       payout: r.payout || '',
       code,
       clicks: 0,
-      signups: 0,
-      earnings: 0,
+      signups: 0,      // completed referred orders
+      earnings: 0,     // commission accrued
+      orders: [],      // [{orderId, amount, commission, at}] — prevents double credit
       createdAt: new Date().toISOString(),
     };
     list.push(item);
     write('referrals', list);
     return item;
   },
-  trackReferralClick(code) {
+  // Count a link click, de-duped by a visitor token (session/IP hash) so the
+  // number reflects unique visits rather than every page load.
+  trackReferralClick(code, visitorToken) {
     const list = read('referrals', []);
     const r = list.find((x) => x.code === String(code || '').trim().toUpperCase());
     if (!r) return null;
+    r.clickTokens = Array.isArray(r.clickTokens) ? r.clickTokens : [];
+    if (visitorToken) {
+      if (r.clickTokens.includes(visitorToken)) { return r; } // already counted
+      r.clickTokens.push(visitorToken);
+      if (r.clickTokens.length > 5000) r.clickTokens = r.clickTokens.slice(-5000);
+    }
     r.clicks = (r.clicks || 0) + 1;
+    write('referrals', list);
+    return r;
+  },
+  // Credit a completed referred purchase to the code owner. Idempotent by
+  // orderId so webhook retries never double-count.
+  creditReferralConversion(code, { orderId, amount, commissionRate } = {}) {
+    const list = read('referrals', []);
+    const r = list.find((x) => x.code === String(code || '').trim().toUpperCase());
+    if (!r) return null;
+    r.orders = Array.isArray(r.orders) ? r.orders : [];
+    if (orderId && r.orders.some((o) => o.orderId === orderId)) return r; // already credited
+    const amt = Number(amount) || 0;
+    const rate = typeof commissionRate === 'number' ? commissionRate : 0.10; // default 10%
+    const commission = Math.round(amt * rate * 100) / 100;
+    r.signups = (r.signups || 0) + 1;
+    r.earnings = Math.round(((r.earnings || 0) + commission) * 100) / 100;
+    r.orders.push({ orderId: orderId || null, amount: amt, commission, at: new Date().toISOString() });
+    if (r.orders.length > 1000) r.orders = r.orders.slice(-1000);
     write('referrals', list);
     return r;
   },

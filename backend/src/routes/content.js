@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAdmin } from '../auth.js';
-import { store } from '../store.js';
+import { store, storeHealth } from '../store.js';
 
 const router = Router();
 
@@ -78,6 +78,11 @@ router.post('/pageview', (req, res) => {
 // Admin: full analytics payload
 router.get('/analytics', requireAdmin, (req, res) => {
   res.json({ success: true, analytics: store.getAnalytics() });
+});
+
+// Admin: storage diagnostics — confirms whether data actually persists.
+router.get('/storage-health', requireAdmin, (req, res) => {
+  res.json({ success: true, ...storeHealth() });
 });
 
 export default router;

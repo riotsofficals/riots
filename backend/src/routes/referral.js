@@ -31,7 +31,11 @@ router.post('/signup', requireAuth, (req, res) => {
 router.post('/track', (req, res) => {
   const code = String(req.body.code || '').trim().slice(0, 40);
   if (!code) return res.status(400).json({ success: false, message: 'Code required.' });
-  const ref = store.trackReferralClick(code);
+  // De-dupe clicks by a coarse visitor token: client-sent id + IP, hashed.
+  const vid = String(req.body.vid || '').slice(0, 64);
+  const ip = (req.ip || '').slice(0, 64);
+  const visitorToken = (vid || ip) ? `${vid}|${ip}` : '';
+  const ref = store.trackReferralClick(code, visitorToken);
   res.json({ success: true, tracked: !!ref });
 });
 

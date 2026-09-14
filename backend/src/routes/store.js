@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { komerza } from '../komerza.js';
 import { store } from '../store.js';
 import { requireAdmin, requireAuth } from '../auth.js';
+import { getProvider, DEFAULT_PROVIDER } from '../providers/index.js';
 
 const router = Router();
 const asyncH = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -59,6 +60,83 @@ router.delete('/products/:id', requireAdmin, (req, res) => {
   const products = store.removeProduct(req.params.id);
   res.json({ success: true, products });
 });
+
+/* ============================================================
+   SCRIPTS — fully automatic from LuaProt. No admin catalog.
+   We read the account's hubs (script id + name) and the user's
+   keys, then return exactly the scripts each key unlocks with a
+   ready-to-run loader. The loader URL uses the LuaProt script id.
+   ============================================================ */
+
+const LOADER_BASE = 'https://luaprot.net/api/v2/loaders/get/';
+
+// Admin: read-only view of every hub + script on the account.
+router.get(
+  '/scripts',
+  requireAdmin,
+  asyncH(async (req, res) => {
+    const provider = getProvider(DEFAULT_PROVIDER);
+    const hubs = (await provider.getHubs())?.hubs || [];
+    res.json({ success: true, hubs });
+  })
+);
+
+// User: the scripts THIS user can load, scoped by their key(s).
+// A key with no limitedScripts unlocks every script in its hub.
+router.get(
+  '/scripts/mine',
+  requireAuth,
+  asyncH(async (req, res) => {
+    const provider = getProvider(DEFAULT_PROVIDER);
+
+    let keys = [];
+    try {
+      const result = await provider.fetchKeys({ discordId: req.user.discordId });
+      keys = result.keys || [];
+    } catch (_) { keys = []; }
+
+    const active = keys.filter((k) => k && !k.blacklisted);
+    if (!active.length) {
+      return res.json({ success: true, scripts: [], hasKey: false });
+    }
+
+    // Pull hubs+scripts so we can resolve names and enumerate hub scripts.
+    let hubs = [];
+    try { hubs = (await provider.getHubs())?.hubs || []; } catch (_) { hubs = []; }
+    const hubById = new Map(hubs.map((h) => [String(h.id), h]));
+    const scriptById = new Map();
+    for (const h of hubs) {
+      for (const s of (h.scripts || [])) {
+        scriptById.set(String(s.id), { id: String(s.id), name: s.name, hubId: String(h.id), hubName: h.name });
+      }
+    }
+
+    // Build a de-duped list of {scriptId -> key} the user can run.
+    const out = new Map(); // scriptId -> { ...script, key }
+    for (const k of active) {
+      const hub = hubById.get(String(k.hubId));
+      const hubScripts = hub ? (hub.scripts || []) : [];
+      const limited = Array.isArray(k.limitedScripts) && k.limitedScripts.length;
+      const grantedIds = limited
+        ? k.limitedScripts.map(String)
+        : hubScripts.map((s) => String(s.id)); // unrestricted = all scripts in the key's hub
+      for (const sid of grantedIds) {
+        if (out.has(sid)) continue;
+        const meta = scriptById.get(sid) || { id: sid, name: 'Script ' + sid, hubId: String(k.hubId), hubName: k.hubName || '' };
+        out.set(sid, {
+          id: meta.id,
+          name: meta.name,
+          hubName: meta.hubName,
+          key: k.key || '',
+          loaderUrl: LOADER_BASE + meta.id,
+        });
+      }
+    }
+
+    const scripts = [...out.values()];
+    res.json({ success: true, scripts, hasKey: true });
+  })
+);
 
 /* ============================================================
    DISCOUNT CODES — admin only

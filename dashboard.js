@@ -236,6 +236,7 @@ $$('#dashTabs .dtab[data-view]').forEach((btn) => {
     if (view === 'updates') loadUpdates();
     if (view === 'status') loadStatus();
     if (view === 'tickets') loadTickets();
+    if (view === 'scripts') loadMyScripts();
     if (view === 'referral') loadReferral();
     if (view === 'admin') loadAdmin();
   });
@@ -412,6 +413,7 @@ function renderProfile(data) {
       </div>
 
       <div class="profile-actions">
+        <button class="btn btn-gradient" id="profGetScript"><i data-lucide="download"></i><span>Get script</span></button>
         <button class="btn btn-bw" id="profResetHwid"><i data-lucide="rotate-ccw"></i><span>Reset my HWID</span></button>
         <a class="btn btn-bw" href="https://discord.gg/m7Z9Jyp6pf" target="_blank" rel="noopener"><i data-lucide="life-buoy"></i><span>Get support</span></a>
       </div>
@@ -437,6 +439,8 @@ function renderProfile(data) {
     } catch (e) { alert(e.message); }
     reset.disabled = false;
   });
+  const getScript = $('#profGetScript');
+  if (getScript) getScript.addEventListener('click', openScriptModal);
   renderIcons();
 }
 
@@ -445,6 +449,126 @@ function refLink(code) {
   const origin = location.origin.includes('file') ? 'https://riots.wtf' : location.origin;
   return origin + '/products.html?ref=' + encodeURIComponent(code);
 }
+/* ---------------- MY SCRIPTS (user) ---------------- */
+function loaderCode(key, loaderUrl) {
+  return `getgenv().lp_key = "${key || 'YOUR_KEY'}"\nloadstring(game:HttpGet(\n    "${loaderUrl}"\n))()`;
+}
+async function loadMyScripts() {
+  const area = $('#scriptsArea');
+  if (!area) return;
+  area.innerHTML = `<div class="dash-loading"><span></span><span></span><span></span></div>`;
+  let data;
+  try {
+    data = await api('/api/store/scripts/mine');
+  } catch (e) {
+    area.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+    return;
+  }
+  if (!data.hasKey) {
+    area.innerHTML = `<div class="empty">No active key linked yet. <a href="products.html">Grab one here</a> to unlock your scripts.</div>`;
+    return;
+  }
+  const scripts = data.scripts || [];
+  if (!scripts.length) {
+    area.innerHTML = `<div class="empty">Your key doesn't have any scripts assigned yet. Open a ticket if you think this is wrong.</div>`;
+    return;
+  }
+  area.innerHTML = `<div class="scripts-grid">${scripts.map((s) => {
+    const code = loaderCode(s.key, s.loaderUrl);
+    return `
+    <div class="script-card" data-id="${esc(s.id)}">
+      <div class="sc-head">
+        <div><div class="sc-name">${esc(s.name)}</div>${s.hubName ? `<div class="sc-game">${esc(s.hubName)}</div>` : ''}</div>
+        <span class="sc-badge"><span class="dot"></span> Active</span>
+      </div>
+      <div class="sc-code">
+        <pre><code>${esc(code)}</code></pre>
+        <button class="btn btn-bw sm sc-copy" type="button" data-code="${esc(code)}"><i data-lucide="copy"></i><span>Copy loader</span></button>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+  renderIcons();
+  area.querySelectorAll('.sc-copy').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      navigator.clipboard.writeText(btn.dataset.code).then(() => {
+        const s = btn.querySelector('span'); const old = s.textContent;
+        s.textContent = 'Copied!'; btn.classList.add('ok');
+        setTimeout(() => { s.textContent = old; btn.classList.remove('ok'); }, 1500);
+      });
+    });
+  });
+}
+
+/* "Get script" modal — pick a script, copy its loadstring. */
+function closeScriptModal() {
+  const m = $('#scriptModal'); if (m) m.remove();
+  document.body.style.overflow = '';
+}
+async function openScriptModal() {
+  closeScriptModal();
+  const wrap = document.createElement('div');
+  wrap.id = 'scriptModal';
+  wrap.className = 'modal-overlay';
+  wrap.innerHTML = `
+    <div class="modal-card" role="dialog" aria-modal="true">
+      <button class="modal-close" id="scriptModalClose" aria-label="Close"><i data-lucide="x"></i></button>
+      <h3 class="modal-title"><i data-lucide="download"></i> Get script</h3>
+      <div id="scriptModalBody"><div class="dash-loading"><span></span><span></span><span></span></div></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  document.body.style.overflow = 'hidden';
+  renderIcons();
+  wrap.addEventListener('click', (e) => { if (e.target === wrap) closeScriptModal(); });
+  $('#scriptModalClose').addEventListener('click', closeScriptModal);
+
+  const body = $('#scriptModalBody');
+  let data;
+  try {
+    data = await api('/api/store/scripts/mine');
+  } catch (e) {
+    body.innerHTML = `<p class="ref-error">${esc(e.message)}</p>`; return;
+  }
+  if (!data.hasKey) {
+    body.innerHTML = `<div class="empty">No active key linked yet. <a href="products.html">Grab one here</a>.</div>`; return;
+  }
+  const scripts = data.scripts || [];
+  if (!scripts.length) {
+    body.innerHTML = `<div class="empty">Your key doesn't unlock any scripts yet.</div>`; return;
+  }
+
+  body.innerHTML = `
+    <label class="admin-label" style="color:var(--muted)">Choose a script</label>
+    <select id="scriptModalPick">
+      ${scripts.map((s, i) => `<option value="${i}">${esc(s.name)}${s.hubName ? ' — ' + esc(s.hubName) : ''}</option>`).join('')}
+    </select>
+    <label class="admin-label" style="color:var(--muted);margin-top:14px">Your loadstring</label>
+    <div class="sc-code">
+      <pre><code id="scriptModalCode"></code></pre>
+      <button class="btn btn-gradient wide sc-copy" id="scriptModalCopy" type="button"><i data-lucide="copy"></i><span>Copy loadstring</span></button>
+    </div>
+    <p class="profile-note">Paste this into your executor. Keep your key private — sharing it gets it blacklisted.</p>`;
+
+  const codeEl = $('#scriptModalCode');
+  const pick = $('#scriptModalPick');
+  const render = () => {
+    const s = scripts[parseInt(pick.value, 10) || 0];
+    codeEl.textContent = loaderCode(s.key, s.loaderUrl);
+  };
+  pick.addEventListener('change', render);
+  render();
+  if (typeof enhanceSelects === 'function') enhanceSelects(body);
+
+  $('#scriptModalCopy').addEventListener('click', (e) => {
+    const btn = e.currentTarget;
+    navigator.clipboard.writeText(codeEl.textContent).then(() => {
+      const sp = btn.querySelector('span'); const old = sp.textContent;
+      sp.textContent = 'Copied!'; btn.classList.add('ok');
+      setTimeout(() => { sp.textContent = old; btn.classList.remove('ok'); }, 1500);
+    });
+  });
+  renderIcons();
+}
+
 async function loadReferral() {
   const panel = $('#refPanel');
   if (!panel) return;
@@ -574,6 +698,7 @@ async function loadAdmin() {
         <button class="adm-navbtn" data-section="analytics"><i data-lucide="bar-chart-3"></i><span>Analytics</span></button>
         <button class="adm-navbtn" data-section="products"><i data-lucide="package"></i><span>Products</span></button>
         <button class="adm-navbtn" data-section="keys"><i data-lucide="key-round"></i><span>Keys &amp; users</span></button>
+        <button class="adm-navbtn" data-section="scripts"><i data-lucide="file-code"></i><span>Scripts</span></button>
         <button class="adm-navbtn" data-section="discounts"><i data-lucide="ticket-percent"></i><span>Discounts</span></button>
         <button class="adm-navbtn" data-section="referrals"><i data-lucide="gift"></i><span>Referrals</span></button>
         <button class="adm-navbtn" data-section="tickets"><i data-lucide="life-buoy"></i><span>Tickets</span></button>
@@ -738,6 +863,15 @@ async function loadAdmin() {
           </div>
         </section>
 
+        <!-- SCRIPTS -->
+        <section class="adm-section" data-section="scripts" hidden>
+          <div class="adm-head"><h2>Scripts</h2><p>Read live from LuaProt. Buyers automatically get the scripts their key unlocks — you don't configure anything here. To limit a key to specific scripts, use the checkboxes when generating a key in the Keys tab.</p></div>
+          <div class="adm-card">
+            <div class="adm-card-head"><h3>Hubs &amp; scripts</h3><button class="btn btn-bw sm" id="adScriptRefresh" type="button"><i data-lucide="refresh-cw"></i><span>Refresh</span></button></div>
+            <div id="adScriptList" class="admin-hubs"></div>
+          </div>
+        </section>
+
         <!-- DISCOUNTS -->
         <section class="adm-section" data-section="discounts" hidden>
           <div class="adm-head"><h2>Discount codes</h2><p>Mirror of your Komerza coupons. Create the same code as a coupon in your Komerza dashboard for it to actually apply at checkout.</p></div>
@@ -844,6 +978,7 @@ async function loadAdmin() {
     $$('.adm-navbtn').forEach((b) => b.classList.toggle('active', b.dataset.section === name));
     $$('.adm-section').forEach((s) => (s.hidden = s.dataset.section !== name));
     if (name === 'analytics') loadAnalytics();
+    if (name === 'scripts') loadAdminScripts();
   };
   $$('.adm-navbtn').forEach((b) => b.addEventListener('click', () => showSection(b.dataset.section)));
   $$('.adm-quick-btn').forEach((b) => b.addEventListener('click', () => showSection(b.dataset.goto)));
@@ -851,6 +986,10 @@ async function loadAdmin() {
   if (prodNew) prodNew.addEventListener('click', () => { if (typeof resetProdForm === 'function') resetProdForm(); $('#adProdName').focus(); });
   const refreshAn = $('#adRefreshAnalytics');
   if (refreshAn) refreshAn.addEventListener('click', loadAnalytics);
+
+  // Scripts (read-only, live from LuaProt)
+  const scriptRefresh = $('#adScriptRefresh');
+  if (scriptRefresh) scriptRefresh.addEventListener('click', loadAdminScripts);
 
   // My key lookup
   $('#adLookup').addEventListener('click', async () => {
@@ -1104,6 +1243,24 @@ async function loadAdminHubs() {
   }
 }
 
+// Admin Scripts tab — read-only live view of hubs + scripts from LuaProt.
+async function loadAdminScripts() {
+  const list = document.querySelector('#adScriptList');
+  if (!list) return;
+  list.innerHTML = `<div class="dash-loading"><span></span><span></span><span></span></div>`;
+  try {
+    const r = await api('/api/store/scripts', { admin: true });
+    const hubs = normalizeHubs(r);
+    if (!hubs.length) { list.innerHTML = `<div class="empty">No hubs found on this account.</div>`; return; }
+    list.innerHTML = hubs.map((h) => `
+      <div class="admin-hub">
+        <div class="ah-head"><i data-lucide="folder"></i> <strong>${esc(h.name)}</strong> <span class="ah-count">${h.scripts.length} script${h.scripts.length === 1 ? '' : 's'}</span></div>
+        ${h.scripts.length ? `<div class="ah-scripts">${h.scripts.map((s) => `<span class="ah-script"><i data-lucide="file-code"></i> ${esc(s.name)} <span class="ah-sid">${esc(String(s.id))}</span></span>`).join('')}</div>` : `<div class="ah-scripts empty">No scripts in this hub.</div>`}
+      </div>`).join('');
+    renderIcons();
+  } catch (e) { list.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
 async function loadAnalytics() {
   const chart = $('#adAnalyticsChart');
   if (!chart) return;
@@ -1203,7 +1360,7 @@ function renderAdminReferrals() {
     <div class="admin-key" data-id="${esc(ref.id)}">
       <div class="ak-main">
         <code>${esc(ref.code)}</code>
-        <div class="ap-sub">${esc(ref.username || ref.discordId)} · ${ref.clicks || 0} clicks · ${ref.signups || 0} signups${ref.payout ? ' · ' + esc(ref.payout) : ''}</div>
+        <div class="ap-sub">${esc(ref.username || ref.discordId)} · ${ref.clicks || 0} clicks · ${ref.signups || 0} sales · $${Number(ref.earnings || 0).toFixed(2)} earned${ref.payout ? ' · ' + esc(ref.payout) : ''}</div>
       </div>
       <button class="mini danger" data-act="del">Delete</button>
     </div>`).join('');

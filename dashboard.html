@@ -43,6 +43,7 @@
         <div class="dash-tabs" id="dashTabs">
           <button class="dtab active" data-view="profile"><i data-lucide="user-round"></i> Profile</button>
           <button class="dtab" data-view="keys"><i data-lucide="key-round"></i> My Keys</button>
+          <button class="dtab" data-view="scripts"><i data-lucide="file-code"></i> Scripts</button>
           <button class="dtab" data-view="updates"><i data-lucide="megaphone"></i> Updates</button>
           <button class="dtab" data-view="status"><i data-lucide="activity"></i> Status</button>
           <button class="dtab" data-view="tickets"><i data-lucide="life-buoy"></i> Tickets</button>
@@ -60,6 +61,11 @@
         <section class="dview" data-view="keys" hidden>
           <div class="dash-user" id="dashUser"></div>
           <div id="keysArea"></div>
+        </section>
+
+        <!-- SCRIPTS VIEW -->
+        <section class="dview" data-view="scripts" hidden>
+          <div id="scriptsArea"><div class="dash-loading"><span></span><span></span><span></span></div></div>
         </section>
 
         <!-- UPDATES VIEW -->

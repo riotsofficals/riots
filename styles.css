@@ -1036,6 +1036,7 @@ select.csel-native { display: none !important; }
   border: 1px solid var(--line); background: rgba(0,0,0,.25); color: var(--muted); font-size: 12.5px;
 }
 .ah-script i, .ah-script .lucide { width: 13px; height: 13px; }
+.ah-sid { font-family: var(--mono); font-size: 10.5px; color: var(--muted-2); opacity: .7; margin-left: 4px; }
 
 .script-pick { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; margin-bottom: 12px; }
 .sp-item {
@@ -1088,3 +1089,55 @@ select.csel-native { display: none !important; }
   .adm-toolbar { flex-direction: column; align-items: stretch; }
   .adm-toolbar .csel { width: 100%; }
 }
+
+/* ===================== USER: my scripts ===================== */
+.scripts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.script-card {
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--panel), var(--bg-2)); padding: 18px 20px;
+  transition: border-color .2s;
+}
+.script-card:hover { border-color: var(--line-red); }
+.sc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.sc-name { font-size: 16px; font-weight: 800; color: #fff; }
+.sc-game { color: var(--muted-2); font-size: 12.5px; margin-top: 2px; }
+.sc-badge {
+  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+  font-size: 11px; font-weight: 700; color: var(--green);
+  background: rgba(53,208,127,.1); border: 1px solid rgba(53,208,127,.3);
+  padding: 4px 10px; border-radius: 99px;
+}
+.sc-badge .dot { width: 7px; height: 7px; border-radius: 99px; background: currentColor; }
+.sc-desc { color: var(--muted); font-size: 13.5px; line-height: 1.5; margin-bottom: 12px; }
+.sc-code { position: relative; }
+.sc-code pre {
+  margin: 0 0 10px; padding: 14px 16px; border-radius: 12px; overflow-x: auto;
+  background: #0a0a0c; border: 1px solid var(--line);
+}
+.sc-code code { font-family: var(--mono); font-size: 12.5px; color: #e8e8ea; white-space: pre; line-height: 1.6; }
+.sc-copy.ok { background: var(--green); color: #05130c; }
+
+/* ===================== MODAL (Get script) ===================== */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 1300; display: grid; place-items: center; padding: 20px;
+  background: rgba(0,0,0,.65); backdrop-filter: blur(5px); animation: modal-fade .18s ease;
+}
+@keyframes modal-fade { from { opacity: 0; } }
+.modal-card {
+  position: relative; width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto;
+  border: 1px solid var(--line-red); border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, var(--panel), var(--bg-2));
+  padding: 26px 28px; box-shadow: 0 24px 70px rgba(0,0,0,.6);
+  animation: modal-pop .22s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes modal-pop { from { opacity: 0; transform: translateY(14px) scale(.97); } }
+.modal-title { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 800; margin-bottom: 18px; }
+.modal-title i, .modal-title .lucide { width: 20px; height: 20px; color: var(--red-2); }
+.modal-close {
+  position: absolute; top: 16px; right: 16px; width: 34px; height: 34px; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  border: 1px solid var(--line); background: rgba(0,0,0,.25); color: var(--muted); transition: all .2s;
+}
+.modal-close:hover { color: #fff; border-color: var(--line-red); background: rgba(255,43,43,.1); }
+.modal-close i, .modal-close .lucide { width: 17px; height: 17px; }
+.modal-card .sc-copy.ok { background: var(--green); color: #05130c; }

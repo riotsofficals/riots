@@ -56,11 +56,26 @@ router.post('/komerza', async (req, res) => {
     if (isPaid) {
       // Pull the buyer's Discord ID from metadata if you passed it at checkout
       // (Komerza supports data-kmrza-metadata / metadata on the embed).
+      const meta = event.metadata || event.data?.metadata || {};
       const discordId =
-        event.metadata?.discordId ||
-        event.data?.metadata?.discordId ||
+        meta.discordId ||
         event.customer?.discordId ||
         null;
+
+      // Credit a referral conversion if a code rode along at checkout.
+      // We accept either our internal referral code or Komerza's affiliate code.
+      const refCode =
+        meta.ref || meta.referral || meta.referralCode || meta.affiliateCode ||
+        event.affiliateCode || event.data?.affiliateCode || null;
+      if (refCode) {
+        const orderId = event.id || event.orderId || event.data?.id || null;
+        const amount =
+          Number(event.total ?? event.amount ?? event.data?.total ?? event.data?.amount ?? 0) || 0;
+        try {
+          const credited = store.creditReferralConversion(refCode, { orderId, amount });
+          if (credited) console.log('[webhook] Credited referral', refCode, 'order', orderId);
+        } catch (e) { console.warn('[webhook] referral credit failed:', e.message); }
+      }
 
       const provider = getProvider(DEFAULT_PROVIDER);
 

@@ -399,7 +399,12 @@ function komerzaOpen(items, opts = {}) {
   }
   const payload = { items, theme: (KMRZA && KMRZA.theme) || 'dark', ...opts };
   const ref = storedAffiliateCode();
-  if (ref && !payload.affiliateCode) payload.affiliateCode = ref;
+  if (ref) {
+    // Attach as affiliate code (Komerza's own program) AND as metadata so our
+    // webhook can credit the referral even without Komerza affiliates enabled.
+    if (!payload.affiliateCode) payload.affiliateCode = ref;
+    payload.metadata = { ...(payload.metadata || {}), ref };
+  }
   k.open(payload);
   return true;
 }
@@ -950,7 +955,13 @@ function trackReferralVisit() {
   if (!code) return;
   const key = 'riots_ref_tracked';
   try { if (sessionStorage.getItem(key) === code) return; sessionStorage.setItem(key, code); } catch (_) {}
-  refApi('/api/referral/track', { method: 'POST', body: { code } }).catch(() => {});
+  // stable per-browser id so the backend can de-dupe clicks
+  let vid = '';
+  try {
+    vid = localStorage.getItem('riots_vid') || '';
+    if (!vid) { vid = (crypto?.randomUUID?.() || String(Date.now()) + Math.random().toString(36).slice(2)); localStorage.setItem('riots_vid', vid); }
+  } catch (_) {}
+  refApi('/api/referral/track', { method: 'POST', body: { code, vid } }).catch(() => {});
 }
 
 /* ---------- BOOT ---------- */

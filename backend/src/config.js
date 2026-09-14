@@ -57,7 +57,9 @@ export const config = {
     variantMonthly: process.env.KOMERZA_VARIANT_MONTHLY || '3a1b2e3a-4151-4ccb-859e-f0803ef09cc9',
   },
 
-  dataDir: process.env.DATA_DIR || './data',
+  // In production default to /data (attach a Railway Volume there); locally use
+  // ./data. Override with DATA_DIR either way.
+  dataDir: process.env.DATA_DIR || ((process.env.NODE_ENV || 'development') === 'production' ? '/data' : './data'),
 };
 
 export const isProd = config.env === 'production';

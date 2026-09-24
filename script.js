@@ -307,95 +307,128 @@ function initFeatureAccordion() {
 }
 
 /* ---------- STORE: CATEGORY SHOWCASE (products page) ---------- */
-const STORE_CATEGORIES = [
-  { name: 'Rainbow Six Siege', image: 'seige.png', slug: 'r6siege' },
-  { name: 'Roblox', image: 'roblox.png', slug: 'roblox' }
+let STORE_CATEGORIES = [
+  { name: 'Rainbow Six Siege', image: 'seige.png', slug: 'r6siege', description: 'Rainbow Six Siege private software and scripts' },
+  { name: 'Roblox', image: 'roblox.png', slug: 'roblox', description: 'Roblox scripts, executors and exploits' },
+  { name: 'Escape from Tarkov', image: 'seige.png', slug: 'eft', description: 'Tarkov tools, radar & external software' },
+  { name: 'Rust', image: 'roblox.png', slug: 'rust', description: 'Rust recoil, scripts and external software' }
 ];
 
 let currentCategory = null;
 
-function initStoreCategoryShowcase() {
+function normalizeCategory(c) {
+  return {
+    id: c.id || ('cat_' + (c.slug || c.name || '').toLowerCase().replace(/[^a-z0-9]/g, '')),
+    name: c.name || 'Category',
+    slug: (c.slug || c.name || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
+    image: c.image || (c.name.toLowerCase().includes('roblox') ? 'roblox.png' : 'seige.png'),
+    icon: c.icon || '📦',
+    description: c.description || '',
+  };
+}
+
+async function initStoreCategoryShowcase() {
   const showcase = document.getElementById('categoryShowcase');
   if (!showcase) return;
 
-  // Show placeholder while loading
-  showcase.innerHTML = `<div class="category-card placeholder" style="opacity: 0.5"><div class="category-card-image" style="height: 280px; background: linear-gradient(90deg, #1a1a1a, #0a0a0a); animation: pulse 2s infinite"></div><div class="category-card-info"><div class="category-count" style="height: 16px; background: #222; border-radius: 4px; width: 60%"></div><div class="category-name" style="height: 20px; background: #222; border-radius: 4px; width: 80%; margin-top: 8px"></div></div></div>`.repeat(2);
+  // Show placeholder cards while loading
+  showcase.innerHTML = `<div class="category-card placeholder" style="opacity:0.45"><div class="category-card-image" style="background:linear-gradient(90deg, #16161d, #0d0d12); animation:pulse 2s infinite"></div></div>`.repeat(4);
 
-  // Fetch product counts per category from backend
-  async function renderCategories() {
-    try {
-      const res = await fetch(API_BASE + '/api/products');
-      const data = res.ok ? await res.json() : { products: [DEFAULT_PRODUCT] };
-      const products = data.products || [];
-      
-      const catCounts = {};
-      STORE_CATEGORIES.forEach(c => { catCounts[c.slug] = 0; });
-      products.forEach(p => {
-        const cat = p.category || 'General';
-        const matched = STORE_CATEGORIES.find(c => c.slug.toLowerCase() === cat.toLowerCase());
-        if (matched) catCounts[matched.slug]++;
-      });
+  try {
+    const [catRes, prodRes] = await Promise.all([
+      fetch(API_BASE + '/api/products/categories').catch(() => null),
+      fetch(API_BASE + '/api/products').catch(() => null),
+    ]);
 
-      showcase.innerHTML = STORE_CATEGORIES.map((cat, i) => `
-        <div class="category-card reveal in-view" data-category="${esc(cat.slug)}" style="animation-delay:${i * 100}ms">
-          <div class="category-card-image">
-            <img src="${esc(cat.image)}" alt="${esc(cat.name)}" loading="lazy" />
-          </div>
-          <div class="category-card-info">
-            <div class="category-count">${catCounts[cat.slug] || 0} products</div>
-            <div class="category-name">${esc(cat.name)}</div>
-            <button class="category-button" data-category-btn="${esc(cat.slug)}">Browse now</button>
-          </div>
-        </div>`).join('');
-
-      showcase.querySelectorAll('.category-card').forEach(card => {
-        const slug = card.dataset.category;
-        card.addEventListener('click', () => showProductsForCategory(slug));
-        card.querySelector('[data-category-btn]').addEventListener('click', (e) => {
-          e.stopPropagation();
-          showProductsForCategory(slug);
-        });
-      });
-
-      renderIcons();
-    } catch (e) { 
-      console.error('Failed to load categories:', e);
-      // Fallback: still show the categories even if backend fails
-      showcase.innerHTML = STORE_CATEGORIES.map((cat, i) => `
-        <div class="category-card reveal in-view" data-category="${esc(cat.slug)}" style="animation-delay:${i * 100}ms">
-          <div class="category-card-image">
-            <img src="${esc(cat.image)}" alt="${esc(cat.name)}" loading="lazy" />
-          </div>
-          <div class="category-card-info">
-            <div class="category-count">? products</div>
-            <div class="category-name">${esc(cat.name)}</div>
-            <button class="category-button" data-category-btn="${esc(cat.slug)}">Browse now</button>
-          </div>
-        </div>`).join('');
-
-      showcase.querySelectorAll('.category-card').forEach(card => {
-        const slug = card.dataset.category;
-        card.addEventListener('click', () => showProductsForCategory(slug));
-        card.querySelector('[data-category-btn]').addEventListener('click', (e) => {
-          e.stopPropagation();
-          showProductsForCategory(slug);
-        });
-      });
-      renderIcons();
+    if (catRes && catRes.ok) {
+      const catData = await catRes.json();
+      if (Array.isArray(catData.categories) && catData.categories.length > 0) {
+        STORE_CATEGORIES = catData.categories.map(normalizeCategory);
+      }
     }
+
+    if (prodRes && prodRes.ok) {
+      const prodData = await prodRes.json();
+      if (Array.isArray(prodData.products) && prodData.products.length > 0) {
+        STORE_PRODUCTS = prodData.products.map(normalizeProduct);
+      }
+    }
+  } catch (e) {
+    console.warn('Store categories fetch warning:', e);
   }
 
-  renderCategories();
+  if (!STORE_PRODUCTS.length) STORE_PRODUCTS = [DEFAULT_PRODUCT];
+
+  // Count products for each category
+  const catCounts = {};
+  STORE_CATEGORIES.forEach(c => {
+    const cSlug = (c.slug || '').toLowerCase();
+    const cName = (c.name || '').toLowerCase();
+    const cId = (c.id || '').toLowerCase();
+    const count = STORE_PRODUCTS.filter(p => {
+      const pCat = (p.category || 'General').toLowerCase();
+      return pCat === cSlug || pCat === cName || (cId && pCat === cId);
+    }).length;
+    catCounts[c.slug || c.id || c.name] = count;
+  });
+
+  // Render cards matching user reference with blurred bottom bar
+  showcase.innerHTML = STORE_CATEGORIES.map((cat, i) => {
+    const count = catCounts[cat.slug || cat.id || cat.name] || 0;
+    const catIdentifier = cat.slug || cat.id || cat.name;
+    const imgUrl = cat.image || (cat.name.toLowerCase().includes('roblox') ? 'roblox.png' : 'seige.png');
+    return `
+      <div class="category-card reveal in-view" data-category="${esc(catIdentifier)}" style="animation-delay:${i * 70}ms">
+        <span class="category-badge">${count} product${count === 1 ? '' : 's'}</span>
+        <div class="category-card-image">
+          <img src="${esc(imgUrl)}" alt="${esc(cat.name)}" loading="lazy" />
+        </div>
+        <div class="category-card-bottom">
+          <span class="category-title">${esc(cat.name)}</span>
+          <button class="category-view-btn" type="button" data-category-btn="${esc(catIdentifier)}">View</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  showcase.querySelectorAll('.category-card').forEach(card => {
+    const identifier = card.dataset.category;
+    card.addEventListener('click', () => showProductsForCategory(identifier));
+    const btn = card.querySelector('[data-category-btn]');
+    if (btn) {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showProductsForCategory(identifier);
+      });
+    }
+  });
+
+  renderIcons();
 }
 
 function showProductsForCategory(categorySlug) {
   currentCategory = categorySlug;
-  document.getElementById('storeCategoriesView').hidden = true;
-  document.getElementById('storeProductsView').hidden = false;
+  const catView = document.getElementById('storeCategoriesView');
+  const prodView = document.getElementById('storeProductsView');
+  if (catView) catView.hidden = true;
+  if (prodView) prodView.hidden = false;
   
-  const catData = STORE_CATEGORIES.find(c => c.slug === categorySlug);
-  if (catData) {
-    document.getElementById('filterCategoryImage').src = catData.image;
+  const catData = STORE_CATEGORIES.find(c => 
+    (c.slug && c.slug.toLowerCase() === categorySlug.toLowerCase()) ||
+    (c.name && c.name.toLowerCase() === categorySlug.toLowerCase()) ||
+    (c.id && c.id === categorySlug)
+  );
+
+  const imgEl = document.getElementById('filterCategoryImage');
+  if (imgEl && catData && catData.image) {
+    imgEl.src = catData.image;
+  }
+  const titleEl = document.getElementById('filterCategoryTitle');
+  if (titleEl && catData) {
+    titleEl.textContent = catData.name;
+  }
+  const descEl = document.getElementById('filterCategoryDesc');
+  if (descEl && catData) {
+    descEl.textContent = catData.description || `Browse available software for ${catData.name}.`;
   }
 
   renderProductsForCategory(categorySlug);
@@ -405,29 +438,45 @@ function showProductsForCategory(categorySlug) {
 function renderProductsForCategory(categorySlug) {
   const grid = document.getElementById('productsGrid');
   const empty = document.getElementById('productsEmpty');
+  const countEl = document.getElementById('filterCategoryCount');
   if (!grid) return;
+
+  const catData = STORE_CATEGORIES.find(c => 
+    (c.slug && c.slug.toLowerCase() === categorySlug.toLowerCase()) ||
+    (c.name && c.name.toLowerCase() === categorySlug.toLowerCase()) ||
+    (c.id && c.id === categorySlug)
+  );
+
+  const catName = (catData ? catData.name : categorySlug).toLowerCase();
+  const catSlug = (catData ? catData.slug : categorySlug).toLowerCase();
+  const catId = (catData?.id || '').toLowerCase();
 
   let filtered = STORE_PRODUCTS.filter(p => {
     const pCat = (p.category || 'General').toLowerCase();
-    return pCat === categorySlug.toLowerCase();
+    return pCat === catName || pCat === catSlug || (catId && pCat === catId);
   });
+
+  if (countEl) {
+    countEl.textContent = `${filtered.length} product${filtered.length === 1 ? '' : 's'} available`;
+  }
 
   if (empty) empty.hidden = filtered.length > 0;
   
   grid.innerHTML = filtered.map((p, i) => {
-    const status = p.badge || 'In stock';
+    const badgeText = p.badge || 'Undetected';
+    const imgUrl = p.image || (catData?.image || 'product1.png');
     return `
       <div class="product-card-new reveal in-view" data-id="${esc(p.id)}" style="animation-delay:${i * 60}ms">
+        <span class="product-card-badge">${esc(badgeText)}</span>
         <div class="product-card-image-wrapper">
-          <span class="product-status">${esc(status)}</span>
-          <img class="product-card-image" src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" />
+          <img class="product-card-image" src="${esc(imgUrl)}" alt="${esc(p.name)}" loading="lazy" />
         </div>
-        <div class="product-card-info">
-          <div class="product-card-name">${esc(p.name)}</div>
-          <div class="product-card-footer">
-            <span class="product-card-price">${esc(p.price || '')}</span>
-            <button class="product-card-button" data-product-buy="${esc(p.id)}">Buy</button>
+        <div class="product-card-bottom">
+          <div class="product-card-meta">
+            <span class="product-card-name">${esc(p.name)}</span>
+            <span class="product-card-price">${esc(p.price || '')}${p.priceMonthly ? ` · ${esc(p.priceMonthly)}/mo` : ''}</span>
           </div>
+          <button class="product-view-btn" type="button" data-product-view="${esc(p.id)}">View</button>
         </div>
       </div>`;
   }).join('');
@@ -435,30 +484,14 @@ function renderProductsForCategory(categorySlug) {
   grid.querySelectorAll('.product-card-new').forEach(card => {
     const pid = card.dataset.id;
     const p = STORE_PRODUCTS.find(x => x.id === pid);
-    card.addEventListener('click', (e) => {
-      if (!e.target.closest('[data-product-buy]')) {
-        if (p) openProduct(p);
-      }
+    card.addEventListener('click', () => {
+      if (p) openProduct(p);
     });
-    const buyBtn = card.querySelector('[data-product-buy]');
-    if (buyBtn) {
-      buyBtn.addEventListener('click', (e) => {
+    const viewBtn = card.querySelector('[data-product-view]');
+    if (viewBtn) {
+      viewBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (!p) return;
-        const vid = (p.komerzaVariants && (p.komerzaVariants.lifetime || p.komerzaVariants.monthly)) || '';
-        const pid = p.komerzaProductId || KMRZA.productId;
-        if (!isReal(pid) || !isReal(vid)) {
-          alert('This product isn\u2019t connected to Komerza yet.');
-          return;
-        }
-        addToCart({
-          id: pid + ':' + vid,
-          productId: pid, variantId: vid,
-          name: p.name + (p.komerzaVariants && p.komerzaVariants.lifetime ? ' \u2014 Lifetime' : ''),
-          price: p.price || p.priceMonthly,
-          image: p.image,
-        });
-        openCart();
+        if (p) openProduct(p);
       });
     }
   });

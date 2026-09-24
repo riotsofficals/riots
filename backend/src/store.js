@@ -522,17 +522,136 @@ export const store = {
     return links[productId];
   },
 
+  // --- Products Catalog ---
+  getProducts() {
+    let list = read('products', null);
+    if (!list || list.length === 0) {
+      list = [
+        {
+          id: 'prod_rivals',
+          name: 'riots.wtf rivals script',
+          category: 'Roblox',
+          description: "The most complete Rivals script on the market — aimbot, silent aim, a full ESP suite, hit effects, skin/cosmetic unlocker, spoofers and more, all in one clean draggable menu. Anti-detection built in and updated & UD every single day.",
+          price: '$10',
+          priceMonthly: '$4',
+          image: 'product1.png',
+          badge: 'Undetected',
+          featured: true,
+          order: 1,
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: 'prod_siege',
+          name: 'riots.wtf siege script',
+          category: 'Rainbow Six Siege',
+          description: "Premium Rainbow Six Siege private software. Featuring recoil compensation, stream-proof visual ESP, customizable smoothing aimbot, and internal kernel protection.",
+          price: '$15',
+          priceMonthly: '$7',
+          image: 'seige.png',
+          badge: 'Undetected',
+          featured: true,
+          order: 2,
+          createdAt: new Date().toISOString(),
+        }
+      ];
+      write('products', list);
+    }
+    return list;
+  },
+  getProduct(id) {
+    return this.getProducts().find((p) => p.id === id) || null;
+  },
+  addProduct(p) {
+    const list = this.getProducts();
+    const item = {
+      id: 'prod_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      name: p.name || 'Product',
+      category: p.category || 'General',
+      description: p.description || '',
+      price: p.price || '',
+      priceMonthly: p.priceMonthly || '',
+      image: p.image || '',
+      badge: p.badge || 'In stock',
+      featured: p.featured ?? true,
+      order: p.order ?? list.length,
+      createdAt: new Date().toISOString(),
+    };
+    list.push(item);
+    write('products', list);
+    return item;
+  },
+  updateProduct(id, patch) {
+    const list = this.getProducts();
+    const idx = list.findIndex((x) => x.id === id);
+    if (idx === -1) return null;
+    const allowed = ['name', 'category', 'description', 'price', 'priceMonthly', 'image', 'badge', 'featured', 'order'];
+    for (const f of allowed) {
+      if (patch[f] !== undefined) list[idx][f] = patch[f];
+    }
+    list[idx].updatedAt = new Date().toISOString();
+    write('products', list);
+    return list[idx];
+  },
+  removeProduct(id) {
+    const list = this.getProducts().filter((x) => x.id !== id);
+    write('products', list);
+    return list;
+  },
+
   // --- Categories ---
   getCategories() {
-    return read('categories', []);
+    let list = read('categories', null);
+    if (!list || list.length === 0) {
+      list = [
+        {
+          id: 'cat_r6siege',
+          name: 'Rainbow Six Siege',
+          slug: 'r6siege',
+          icon: '🎯',
+          image: 'seige.png',
+          description: 'Rainbow Six Siege scripts, bypasses and tools',
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: 'cat_roblox',
+          name: 'Roblox',
+          slug: 'roblox',
+          icon: '🎮',
+          image: 'roblox.png',
+          description: 'Roblox scripts, executors and exploits',
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: 'cat_eft',
+          name: 'Escape from Tarkov',
+          slug: 'eft',
+          icon: '🎖️',
+          image: 'seige.png',
+          description: 'Tarkov tools, radar & external software',
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: 'cat_rust',
+          name: 'Rust',
+          slug: 'rust',
+          icon: '🛡️',
+          image: 'roblox.png',
+          description: 'Rust recoil, scripts and external software',
+          createdAt: new Date().toISOString(),
+        }
+      ];
+      write('categories', list);
+    }
+    return list;
   },
   addCategory(c) {
-    const list = read('categories', []);
+    const list = this.getCategories();
     const item = {
-      id: 'cat_' + Date.now().toString(36),
+      id: 'cat_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       name: c.name || 'Category',
       slug: (c.slug || c.name || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
       icon: c.icon || '📦',
+      image: c.image || '',
       description: c.description || '',
       createdAt: new Date().toISOString(),
     };
@@ -541,17 +660,18 @@ export const store = {
     return item;
   },
   updateCategory(id, patch) {
-    const list = read('categories', []);
+    const list = this.getCategories();
     const idx = list.findIndex((x) => x.id === id);
     if (idx === -1) return null;
-    for (const f of ['name', 'slug', 'icon', 'description']) {
+    for (const f of ['name', 'slug', 'icon', 'image', 'description']) {
       if (patch[f] !== undefined) list[idx][f] = patch[f];
     }
+    list[idx].updatedAt = new Date().toISOString();
     write('categories', list);
     return list[idx];
   },
   removeCategory(id) {
-    const list = read('categories', []).filter((x) => x.id !== id);
+    const list = this.getCategories().filter((x) => x.id !== id);
     write('categories', list);
     return list;
   },

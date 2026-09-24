@@ -29,6 +29,7 @@ const categorySchema = z.object({
   name: z.string().min(1).max(100),
   slug: z.string().max(100).optional(),
   icon: z.string().max(50).optional(),
+  image: z.string().max(500).optional().or(z.literal('')),
   description: z.string().max(500).optional().default(''),
 });
 

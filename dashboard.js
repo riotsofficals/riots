@@ -146,16 +146,21 @@ const dashMain = $('#dashMain');
 const linkGate = $('#linkGate');
 const PENDING_KEY = 'riots_pending_key';
 
-function showGate(step) {
+let currentGateStep = 'start';
+
+function showGate(step = 'start') {
+  currentGateStep = step;
   gate.classList.remove('hidden');
   linkGate.hidden = true;
   dashMain.classList.add('blurred');
   $('#agStepStart').hidden = step !== 'start';
   $('#agStepKey').hidden = step !== 'key';
   $('#agStepAdmin').hidden = step !== 'admin';
-  // Back arrow shows on any step except the first.
   const back = $('#agBack');
-  if (back) back.hidden = step === 'start';
+  if (back) {
+    back.hidden = false;
+    back.title = step === 'start' ? 'Back to Store' : 'Back';
+  }
   renderIcons();
 }
 function hideGate() {
@@ -178,8 +183,20 @@ $('#agKeyBack').addEventListener('click', () => showGate('start'));
 $('#agDiscordBtn').addEventListener('click', () => {
   window.location.href = API_BASE + '/auth/discord';
 });
-// Top-left back arrow always returns to the start step
-$('#agBack').addEventListener('click', () => showGate('start'));
+
+// Top-left back arrow navigation:
+$('#agBack').addEventListener('click', () => {
+  if (currentGateStep === 'key' || currentGateStep === 'admin') {
+    showGate('start');
+  } else {
+    // If on start screen, go back in history or to home/store
+    if (window.history.length > 1 && document.referrer) {
+      window.history.back();
+    } else {
+      window.location.href = 'index.html';
+    }
+  }
+});
 
 // Step 2: save the key locally, then show the blurred dashboard + link button
 $('#agKeyContinue').addEventListener('click', () => {
@@ -195,9 +212,16 @@ $('#agKeyContinue').addEventListener('click', () => {
 $('#authDiscordBtn').addEventListener('click', () => {
   window.location.href = API_BASE + '/auth/discord';
 });
+const lgBack = $('#lgBack');
+if (lgBack) {
+  lgBack.addEventListener('click', () => {
+    localStorage.removeItem(PENDING_KEY);
+    showGate('start');
+  });
+}
 $('#linkCancel').addEventListener('click', () => {
   localStorage.removeItem(PENDING_KEY);
-  showGate('key');
+  showGate('start');
 });
 
 // Admin path (secondary)
@@ -2652,40 +2676,57 @@ async function loadProducts() {
     const products = data.products || [];
     const featuresRes = await api('/api/products/all', { admin: true });
     const allFeatures = featuresRes.features || [];
+    const catRes = await api('/api/products/categories', { admin: true }).catch(() => ({ categories: [] }));
+    const cats = catRes.categories || [];
     
     let html = `
       <div class="admin-section">
         <div class="admin-header">
-          <h3>Product Catalog</h3>
+          <div>
+            <h3>Product Catalog</h3>
+            <p style="color:var(--muted);font-size:13px;margin-top:2px;">Manage store products, variants and features</p>
+          </div>
           <button class="btn btn-gradient sm" id="adProdNew"><i data-lucide="plus"></i> Add Product</button>
         </div>
-        <div id="adProdForm" hidden>
-          <form class="admin-form">
-            <input type="text" id="adProdName" placeholder="Product name" required />
-            <select id="adProdCategory"><option value="">Select category...</option></select>
-            <textarea id="adProdDesc" placeholder="Description" rows="3"></textarea>
-            <input type="text" id="adProdPrice" placeholder="Price (e.g., '$10')" />
-            <input type="text" id="adProdImage" placeholder="Image URL" />
-            <div class="admin-features-picker">
-              <label>Features:</label>
-              <div id="adProdFeatures" class="feature-checkboxes"></div>
+        <div id="adProdForm" hidden style="margin-bottom:20px;">
+          <form class="admin-form" id="prodActualForm">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <input type="text" id="adProdName" placeholder="Product name (e.g. riots.wtf Rivals)" required />
+              <select id="adProdCategory"><option value="">Select category...</option></select>
+            </div>
+            <textarea id="adProdDesc" placeholder="Product description" rows="3"></textarea>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+              <input type="text" id="adProdPrice" placeholder="Lifetime Price (e.g., $10)" />
+              <input type="text" id="adProdPriceMonthly" placeholder="Monthly Price (e.g., $4)" />
+              <input type="text" id="adProdBadge" placeholder="Badge (e.g. Undetected)" value="Undetected" />
+            </div>
+            <input type="text" id="adProdImage" placeholder="Cover Image URL or file (e.g., product1.png, seige.png)" />
+            <div class="admin-features-picker" style="margin:12px 0;">
+              <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:#fff;">Features:</label>
+              <div id="adProdFeatures" class="feature-checkboxes" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(180px, 1fr));gap:8px;"></div>
             </div>
             <div class="admin-form-buttons">
-              <button type="submit" class="btn btn-gradient">Save</button>
+              <button type="submit" class="btn btn-gradient">Save Product</button>
               <button type="button" class="btn btn-bw" id="adProdCancel">Cancel</button>
             </div>
           </form>
         </div>
         <div id="adProdList" class="admin-list">
-          ${products.length === 0 ? '<div class="empty">No products yet.</div>' : products.map(p => `
-            <div class="admin-item" data-id="${esc(p.id)}">
-              <div class="ai-main">
-                <strong>${esc(p.name)}</strong>
-                <div class="ai-sub">${esc(p.category)} · ${esc(p.price)} ${p.features?.length ? `· ${p.features.length} features` : ''}</div>
+          ${products.length === 0 ? '<div class="empty">No products yet. Click "Add Product" above to create one.</div>' : products.map(p => `
+            <div class="admin-item" data-id="${esc(p.id)}" style="display:flex;align-items:center;gap:16px;">
+              ${p.image ? `<img src="${esc(p.image)}" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,.1);" />` : ''}
+              <div class="ai-main" style="flex:1;">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  <strong>${esc(p.name)}</strong>
+                  ${p.badge ? `<span class="badge-pill" style="font-size:10px;padding:2px 8px;border-radius:99px;background:rgba(225,29,72,.2);border:1px solid rgba(225,29,72,.4);color:#ff6b81;">${esc(p.badge)}</span>` : ''}
+                </div>
+                <div class="ai-sub" style="font-size:12px;color:var(--muted);margin-top:3px;">
+                  📁 ${esc(p.category || 'General')} · 💰 ${esc(p.price || '$0')}${p.priceMonthly ? ` / ${esc(p.priceMonthly)} mo` : ''} ${p.features?.length ? `· ⚡ ${p.features.length} features` : ''}
+                </div>
               </div>
               <div class="ai-actions">
-                <button class="btn btn-sm btn-bw edit-prod"><i data-lucide="edit-2"></i></button>
-                <button class="btn btn-sm btn-bw del-prod"><i data-lucide="trash-2"></i></button>
+                <button class="btn btn-sm btn-bw edit-prod" title="Edit"><i data-lucide="edit-2"></i></button>
+                <button class="btn btn-sm btn-bw del-prod" title="Delete"><i data-lucide="trash-2"></i></button>
               </div>
             </div>
           `).join('')}
@@ -2694,16 +2735,15 @@ async function loadProducts() {
     
     area.innerHTML = html;
     renderIcons();
-    enhanceSelects(area);
     
     // Load categories for dropdown
-    const catRes = await api('/api/products/categories', { admin: true });
-    const cats = catRes.categories || [];
     const catSel = $('#adProdCategory');
     cats.forEach(c => {
       const opt = document.createElement('option');
-      opt.value = c.id;
+      opt.value = c.name;
       opt.textContent = c.name;
+      opt.dataset.slug = c.slug || '';
+      opt.dataset.id = c.id || '';
       catSel.appendChild(opt);
     });
     enhanceSelects(catSel);
@@ -2713,28 +2753,38 @@ async function loadProducts() {
     allFeatures.forEach(f => {
       const label = document.createElement('label');
       label.className = 'feature-check';
-      label.innerHTML = `<input type="checkbox" value="${esc(f.id)}" /> ${esc(f.name)}`;
+      label.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;color:var(--text);';
+      label.innerHTML = `<input type="checkbox" value="${esc(f.id)}" /> <span>${esc(f.name)}</span>`;
       featBox.appendChild(label);
     });
     
     // Form handlers
-    const form = area.querySelector('.admin-form');
+    const formWrap = $('#adProdForm');
+    const form = $('#prodActualForm');
+    const listWrap = $('#adProdList');
+    
     $('#adProdNew').addEventListener('click', () => {
-      form.hidden = false;
+      delete form.dataset.editId;
       form.reset();
-      $('#adProdList').hidden = true;
+      formWrap.hidden = false;
+      listWrap.hidden = true;
+      $('#adProdName').focus();
     });
+    
     $('#adProdCancel').addEventListener('click', () => {
-      form.hidden = true;
-      $('#adProdList').hidden = false;
+      delete form.dataset.editId;
+      formWrap.hidden = true;
+      listWrap.hidden = false;
     });
     
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const name = $('#adProdName').value.trim();
-      const category = $('#adProdCategory').value;
+      const category = $('#adProdCategory').value || 'General';
       const desc = $('#adProdDesc').value.trim();
       const price = $('#adProdPrice').value.trim();
+      const priceMonthly = $('#adProdPriceMonthly').value.trim();
+      const badge = $('#adProdBadge').value.trim();
       const image = $('#adProdImage').value.trim();
       const selectedFeatures = [...$$('#adProdFeatures input:checked')].map(cb => cb.value);
       
@@ -2743,73 +2793,83 @@ async function loadProducts() {
       const btn = form.querySelector('button[type="submit"]');
       btn.disabled = true;
       try {
-        const body = { name, category, description: desc, price, image };
-        const res = await api('/api/products', { method: 'POST', body, admin: true });
-        if (selectedFeatures.length) {
-          await api(`/api/products/${res.product.id}/features`, { 
+        const body = { name, category, description: desc, price, priceMonthly, badge, image };
+        const editId = form.dataset.editId;
+        
+        let prodId;
+        if (editId) {
+          const res = await api(`/api/products/${editId}`, { method: 'PATCH', body, admin: true });
+          prodId = editId;
+          alert('Product updated successfully!');
+        } else {
+          const res = await api('/api/products', { method: 'POST', body, admin: true });
+          prodId = res.product.id;
+          alert('Product created successfully!');
+        }
+        
+        if (selectedFeatures.length && prodId) {
+          await api(`/api/products/${prodId}/features`, { 
             method: 'PUT', 
             body: { featureIds: selectedFeatures },
             admin: true 
           });
         }
-        alert('Product created!');
+        
+        delete form.dataset.editId;
+        formWrap.hidden = true;
+        listWrap.hidden = false;
         loadProducts();
       } catch (err) { alert(err.message); }
       finally { btn.disabled = false; }
     });
     
-    // Edit/delete
+    // Edit buttons
     area.querySelectorAll('.edit-prod').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
+      btn.addEventListener('click', () => {
         const item = btn.closest('.admin-item');
         const id = item.dataset.id;
         const prod = products.find(p => p.id === id);
         if (!prod) return;
         
-        $('#adProdName').value = prod.name;
-        $('#adProdCategory').value = prod.category;
+        form.dataset.editId = id;
+        $('#adProdName').value = prod.name || '';
+        
+        // Select matching category
+        let found = false;
+        for (const opt of catSel.options) {
+          if (opt.value.toLowerCase() === (prod.category || '').toLowerCase() ||
+              (opt.dataset.slug && opt.dataset.slug.toLowerCase() === (prod.category || '').toLowerCase()) ||
+              (opt.dataset.id && opt.dataset.id === prod.category)) {
+            catSel.value = opt.value;
+            found = true;
+            break;
+          }
+        }
+        if (!found && prod.category) {
+          const opt = document.createElement('option');
+          opt.value = prod.category;
+          opt.textContent = prod.category;
+          catSel.appendChild(opt);
+          catSel.value = prod.category;
+        }
+        
         $('#adProdDesc').value = prod.description || '';
         $('#adProdPrice').value = prod.price || '';
+        $('#adProdPriceMonthly').value = prod.priceMonthly || '';
+        $('#adProdBadge').value = prod.badge || 'Undetected';
         $('#adProdImage').value = prod.image || '';
         
         $$('#adProdFeatures input').forEach(cb => {
           cb.checked = (prod.features || []).includes(cb.value);
         });
         
-        form.hidden = false;
-        $('#adProdList').hidden = true;
-        form.dataset.editId = id;
-        
-        const oldSubmit = form.onsubmit;
-        form.onsubmit = async (e) => {
-          e.preventDefault();
-          const name = $('#adProdName').value.trim();
-          const category = $('#adProdCategory').value;
-          const desc = $('#adProdDesc').value.trim();
-          const price = $('#adProdPrice').value.trim();
-          const image = $('#adProdImage').value.trim();
-          const selectedFeatures = [...$$('#adProdFeatures input:checked')].map(cb => cb.value);
-          
-          const btn = form.querySelector('button[type="submit"]');
-          btn.disabled = true;
-          try {
-            const body = { name, category, description: desc, price, image };
-            await api(`/api/products/${id}`, { method: 'PATCH', body, admin: true });
-            await api(`/api/products/${id}/features`, { 
-              method: 'PUT', 
-              body: { featureIds: selectedFeatures },
-              admin: true 
-            });
-            alert('Product updated!');
-            form.onsubmit = oldSubmit;
-            delete form.dataset.editId;
-            loadProducts();
-          } catch (err) { alert(err.message); }
-          finally { btn.disabled = false; }
-        };
+        formWrap.hidden = false;
+        listWrap.hidden = true;
+        form.scrollIntoView({ behavior: 'smooth' });
       });
     });
     
+    // Delete buttons
     area.querySelectorAll('.del-prod').forEach(btn => {
       btn.addEventListener('click', async () => {
         const item = btn.closest('.admin-item');
@@ -2964,30 +3024,43 @@ async function loadCategories() {
     let html = `
       <div class="admin-section">
         <div class="admin-header">
-          <h3>Game Categories</h3>
+          <div>
+            <h3>Game Categories</h3>
+            <p style="color:var(--muted);font-size:13px;margin-top:2px;">Manage store categories, banners, and game groupings</p>
+          </div>
           <button class="btn btn-gradient sm" id="adCatNew"><i data-lucide="plus"></i> Add Category</button>
         </div>
-        <div id="adCatForm" hidden>
-          <form class="admin-form">
-            <input type="text" id="adCatName" placeholder="Category name (e.g., Rainbow Six Siege)" required />
-            <input type="text" id="adCatIcon" placeholder="Icon (emoji)" />
-            <textarea id="adCatDesc" placeholder="Description" rows="2"></textarea>
+        <div id="adCatForm" hidden style="margin-bottom:20px;">
+          <form class="admin-form" id="catActualForm">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <input type="text" id="adCatName" placeholder="Category name (e.g., Rainbow Six Siege)" required />
+              <input type="text" id="adCatSlug" placeholder="Slug (e.g., r6siege)" />
+            </div>
+            <div style="display:grid;grid-template-columns:120px 1fr;gap:12px;">
+              <input type="text" id="adCatIcon" placeholder="Icon (e.g. 🎯)" />
+              <input type="text" id="adCatImage" placeholder="Cover Image URL or file (e.g., seige.png, roblox.png)" />
+            </div>
+            <textarea id="adCatDesc" placeholder="Short description" rows="2"></textarea>
             <div class="admin-form-buttons">
-              <button type="submit" class="btn btn-gradient">Save</button>
+              <button type="submit" class="btn btn-gradient">Save Category</button>
               <button type="button" class="btn btn-bw" id="adCatCancel">Cancel</button>
             </div>
           </form>
         </div>
         <div id="adCatList" class="admin-list">
-          ${categories.length === 0 ? '<div class="empty">No categories yet.</div>' : categories.map(c => `
-            <div class="admin-item" data-id="${esc(c.id)}">
-              <div class="ai-main">
-                <strong>${esc(c.icon || '📦')} ${esc(c.name)}</strong>
-                <div class="ai-sub">${esc(c.description || '—')}</div>
+          ${categories.length === 0 ? '<div class="empty">No categories yet. Click "Add Category" above to create one.</div>' : categories.map(c => `
+            <div class="admin-item" data-id="${esc(c.id)}" style="display:flex;align-items:center;gap:16px;">
+              ${c.image ? `<img src="${esc(c.image)}" alt="" style="width:54px;height:36px;object-fit:cover;border-radius:6px;border:1px solid rgba(255,255,255,.1);" />` : ''}
+              <div class="ai-main" style="flex:1;">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  <strong>${esc(c.icon || '📦')} ${esc(c.name)}</strong>
+                  <span style="font-size:11px;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);color:var(--muted);">${esc(c.slug || '')}</span>
+                </div>
+                <div class="ai-sub" style="font-size:12px;color:var(--muted);margin-top:3px;">${esc(c.description || '—')}</div>
               </div>
               <div class="ai-actions">
-                <button class="btn btn-sm btn-bw edit-cat"><i data-lucide="edit-2"></i></button>
-                <button class="btn btn-sm btn-bw del-cat"><i data-lucide="trash-2"></i></button>
+                <button class="btn btn-sm btn-bw edit-cat" title="Edit"><i data-lucide="edit-2"></i></button>
+                <button class="btn btn-sm btn-bw del-cat" title="Delete"><i data-lucide="trash-2"></i></button>
               </div>
             </div>
           `).join('')}
@@ -2997,21 +3070,30 @@ async function loadCategories() {
     area.innerHTML = html;
     renderIcons();
     
-    const form = area.querySelector('.admin-form');
+    const formWrap = $('#adCatForm');
+    const form = $('#catActualForm');
+    const listWrap = $('#adCatList');
+    
     $('#adCatNew').addEventListener('click', () => {
+      delete form.dataset.editId;
       form.reset();
-      form.hidden = false;
-      $('#adCatList').hidden = true;
+      formWrap.hidden = false;
+      listWrap.hidden = true;
+      $('#adCatName').focus();
     });
+    
     $('#adCatCancel').addEventListener('click', () => {
-      form.hidden = true;
-      $('#adCatList').hidden = false;
+      delete form.dataset.editId;
+      formWrap.hidden = true;
+      listWrap.hidden = false;
     });
     
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const name = $('#adCatName').value.trim();
+      const slug = $('#adCatSlug').value.trim();
       const icon = $('#adCatIcon').value.trim();
+      const image = $('#adCatImage').value.trim();
       const desc = $('#adCatDesc').value.trim();
       
       if (!name) { alert('Enter category name'); return; }
@@ -3020,21 +3102,24 @@ async function loadCategories() {
       btn.disabled = true;
       try {
         const editId = form.dataset.editId;
+        const body = { name, slug: slug || name.toLowerCase().replace(/[^a-z0-9]/g, ''), icon, image, description: desc };
         if (editId) {
           await api(`/api/products/categories/${editId}`, { 
             method: 'PATCH', 
-            body: { name, icon, description: desc },
+            body,
             admin: true 
           });
         } else {
           await api('/api/products/categories', { 
             method: 'POST', 
-            body: { name, icon, description: desc },
+            body,
             admin: true 
           });
         }
         alert(editId ? 'Category updated!' : 'Category created!');
         delete form.dataset.editId;
+        formWrap.hidden = true;
+        listWrap.hidden = false;
         loadCategories();
       } catch (err) { alert(err.message); }
       finally { btn.disabled = false; }
@@ -3047,12 +3132,15 @@ async function loadCategories() {
         const cat = categories.find(c => c.id === id);
         if (!cat) return;
         
-        $('#adCatName').value = cat.name;
+        $('#adCatName').value = cat.name || '';
+        $('#adCatSlug').value = cat.slug || '';
         $('#adCatIcon').value = cat.icon || '';
+        $('#adCatImage').value = cat.image || '';
         $('#adCatDesc').value = cat.description || '';
         form.dataset.editId = id;
-        form.hidden = false;
-        $('#adCatList').hidden = true;
+        formWrap.hidden = false;
+        listWrap.hidden = true;
+        form.scrollIntoView({ behavior: 'smooth' });
       });
     });
     

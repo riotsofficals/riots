@@ -1,5 +1,5 @@
 window.RIOTS_CONFIG = {
-  API_BASE: "https://riotswtf-production.up.railway.app",
+  API_BASE: "https://riots-production.up.railway.app",
   CLIENT_TOKEN: "",
   CLOUDINARY: {
     cloudName: "ra3jxm6w",

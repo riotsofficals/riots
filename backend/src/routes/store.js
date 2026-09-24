@@ -163,6 +163,19 @@ router.delete('/discounts/:id', requireAdmin, (req, res) => {
 });
 
 /* ============================================================
+   SALES (admin) — real orders pulled live from Komerza
+   ============================================================ */
+router.get(
+  '/sales',
+  requireAdmin,
+  asyncH(async (req, res) => {
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 250);
+    const summary = await komerza.getSalesSummary({ limit });
+    res.json({ success: true, sales: summary });
+  })
+);
+
+/* ============================================================
    TICKETS — users create/view their own; admin sees all
    ============================================================ */
 const ticketSchema = z.object({

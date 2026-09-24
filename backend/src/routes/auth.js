@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import { config } from '../config.js';
+import { store } from '../store.js';
 import {
   discordAuthUrl,
   exchangeDiscordCode,
@@ -58,15 +59,26 @@ router.get('/discord/callback', async (req, res) => {
     const token = await exchangeDiscordCode(code);
     const user = await fetchDiscordUser(token.access_token);
 
+    const discordData = {
+      id: user.id,
+      username: user.username,
+      global_name: user.global_name || user.username,
+      avatar: user.avatar
+        ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`
+        : null,
+    };
+
     const session = signSession({
       discordId: user.id,
       username: user.username,
       globalName: user.global_name || user.username,
-      avatar: user.avatar
-        ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`
-        : null,
+      avatar: discordData.avatar,
     });
     setSessionCookie(res, session);
+
+    // Store Discord profile data for later use with keys
+    // This will be updated when they link a key
+    store.updateDiscordData(user.id, discordData);
 
     // Also hand the token back in the URL fragment so the frontend can store it
     // and send it as a Bearer header. This is the fallback for browsers that

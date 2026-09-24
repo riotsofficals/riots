@@ -80,7 +80,7 @@ function initNavbar() {
   window.addEventListener('scroll', onScroll, { passive: true });
 }
 
-/* ---------- HERO: typewriter + mouse glow (home only) ---------- */
+/* ---------- HERO: typewriter effect (home only) ---------- */
 function initHero() {
   const el = document.getElementById('typewriter');
   if (el) {
@@ -92,71 +92,37 @@ function initHero() {
     };
     setTimeout(type, 500);
   }
-
-  const hero = document.querySelector('.hero');
-  const heroGlow = document.getElementById('heroGlow');
-  const heroGrad = document.getElementById('typewriter');
-  if (hero && heroGlow) {
-    // Perf: cache the rect (recompute only on resize/scroll), throttle pointer
-    // updates to one per animation frame, and move the glow with `transform`
-    // (GPU compositor — no layout/paint) instead of left/top.
-    let rect = hero.getBoundingClientRect();
-    const refreshRect = () => { rect = hero.getBoundingClientRect(); };
-    window.addEventListener('resize', refreshRect, { passive: true });
-    window.addEventListener('scroll', refreshRect, { passive: true });
-
-    let px = 0, py = 0, queued = false;
-    const apply = () => {
-      queued = false;
-      // glow is margin-centered on its origin; a pure translate() moves its
-      // center to (px,py) with zero layout cost.
-      heroGlow.style.transform = `translate(${px}px, ${py}px)`;
-      if (heroGrad) {
-        heroGrad.style.backgroundPosition =
-          `${(px / rect.width) * 100}% ${(py / rect.height) * 100}%`;
-      }
-    };
-    hero.addEventListener('mousemove', (e) => {
-      px = e.clientX - rect.left;
-      py = e.clientY - rect.top;
-      if (heroGrad) heroGrad.classList.add('glow');
-      if (!queued) { queued = true; requestAnimationFrame(apply); }
-    }, { passive: true });
-    hero.addEventListener('mouseleave', () => {
-      // rest near the hero's upper-center
-      heroGlow.style.transform = `translate(${rect.width * 0.5}px, ${rect.height * 0.4}px)`;
-      if (heroGrad) { heroGrad.classList.remove('glow'); heroGrad.style.backgroundPosition = '0% 50%'; }
-    });
-  }
 }
 
-/* ---------- FEATURED PRODUCT (home preview) ---------- */
-const FEATURED = {
-  name: 'riots.wtf rivals script',
-  sub: 'Roblox · Rivals',
-  price: 'from $4',
-  stock: 'In stock',
-  tag: 'Best Seller',
-  in: true,
-};
+/* ---------- GAME CATEGORIES (home showcase) ---------- */
+const GAME_CATEGORIES = [
+  {
+    name: 'Rainbow Six Siege',
+    baseImage: 'ash.png',
+    hoverImage: 'seige.png',
+    category: 'r6siege',
+    desc: 'Competitive tactical shooter'
+  },
+  {
+    name: 'Roblox',
+    baseImage: 'ash.png',
+    hoverImage: 'ash.png',
+    category: 'roblox',
+    desc: 'Create and play games'
+  }
+];
+
 function initHomeProducts() {
   const grid = document.getElementById('homeProductGrid');
   if (!grid) return;
-  grid.classList.add('single');
-  grid.innerHTML = `
-    <a href="products.html" class="product-card reveal in-view">
-      <div class="product-media">
-        <span class="tag">${FEATURED.tag}</span>
-        <img src="product1.png" alt="${FEATURED.name}" />
+  grid.classList.add('categories');
+  grid.innerHTML = GAME_CATEGORIES.map((cat, i) => `
+    <a href="products?cat=${cat.category}" class="game-card reveal in-view" style="animation-delay:${i * 100}ms">
+      <div class="game-card-image">
+        <img class="game-base" src="${cat.baseImage}" alt="${cat.name}" loading="lazy" />
+        <img class="game-hover" src="${cat.hoverImage}" alt="${cat.name}" loading="lazy" />
       </div>
-      <div class="product-info">
-        <div class="product-name">${FEATURED.name}<small>${FEATURED.sub}</small></div>
-        <div class="product-meta">
-          <div class="product-price">${FEATURED.price}</div>
-          <div class="product-stock ${FEATURED.in ? 'in' : ''}">${FEATURED.stock}</div>
-        </div>
-      </div>
-    </a>`;
+    </a>`).join('');
 }
 
 /* ---------- Q&A accordion ---------- */
@@ -340,6 +306,166 @@ function initFeatureAccordion() {
   if (first) first.querySelector('.facc-body').style.maxHeight = first.querySelector('.facc-body').scrollHeight + 'px';
 }
 
+/* ---------- STORE: CATEGORY SHOWCASE (products page) ---------- */
+const STORE_CATEGORIES = [
+  { name: 'Rainbow Six Siege', image: 'seige.png', slug: 'r6siege' },
+  { name: 'Roblox', image: 'roblox.png', slug: 'roblox' }
+];
+
+let currentCategory = null;
+
+function initStoreCategoryShowcase() {
+  const showcase = document.getElementById('categoryShowcase');
+  if (!showcase) return;
+
+  // Show placeholder while loading
+  showcase.innerHTML = `<div class="category-card placeholder" style="opacity: 0.5"><div class="category-card-image" style="height: 280px; background: linear-gradient(90deg, #1a1a1a, #0a0a0a); animation: pulse 2s infinite"></div><div class="category-card-info"><div class="category-count" style="height: 16px; background: #222; border-radius: 4px; width: 60%"></div><div class="category-name" style="height: 20px; background: #222; border-radius: 4px; width: 80%; margin-top: 8px"></div></div></div>`.repeat(2);
+
+  // Fetch product counts per category from backend
+  async function renderCategories() {
+    try {
+      const res = await fetch(API_BASE + '/api/products');
+      const data = res.ok ? await res.json() : { products: [DEFAULT_PRODUCT] };
+      const products = data.products || [];
+      
+      const catCounts = {};
+      STORE_CATEGORIES.forEach(c => { catCounts[c.slug] = 0; });
+      products.forEach(p => {
+        const cat = p.category || 'General';
+        const matched = STORE_CATEGORIES.find(c => c.slug.toLowerCase() === cat.toLowerCase());
+        if (matched) catCounts[matched.slug]++;
+      });
+
+      showcase.innerHTML = STORE_CATEGORIES.map((cat, i) => `
+        <div class="category-card reveal in-view" data-category="${esc(cat.slug)}" style="animation-delay:${i * 100}ms">
+          <div class="category-card-image">
+            <img src="${esc(cat.image)}" alt="${esc(cat.name)}" loading="lazy" />
+          </div>
+          <div class="category-card-info">
+            <div class="category-count">${catCounts[cat.slug] || 0} products</div>
+            <div class="category-name">${esc(cat.name)}</div>
+            <button class="category-button" data-category-btn="${esc(cat.slug)}">Browse now</button>
+          </div>
+        </div>`).join('');
+
+      showcase.querySelectorAll('.category-card').forEach(card => {
+        const slug = card.dataset.category;
+        card.addEventListener('click', () => showProductsForCategory(slug));
+        card.querySelector('[data-category-btn]').addEventListener('click', (e) => {
+          e.stopPropagation();
+          showProductsForCategory(slug);
+        });
+      });
+
+      renderIcons();
+    } catch (e) { 
+      console.error('Failed to load categories:', e);
+      // Fallback: still show the categories even if backend fails
+      showcase.innerHTML = STORE_CATEGORIES.map((cat, i) => `
+        <div class="category-card reveal in-view" data-category="${esc(cat.slug)}" style="animation-delay:${i * 100}ms">
+          <div class="category-card-image">
+            <img src="${esc(cat.image)}" alt="${esc(cat.name)}" loading="lazy" />
+          </div>
+          <div class="category-card-info">
+            <div class="category-count">? products</div>
+            <div class="category-name">${esc(cat.name)}</div>
+            <button class="category-button" data-category-btn="${esc(cat.slug)}">Browse now</button>
+          </div>
+        </div>`).join('');
+
+      showcase.querySelectorAll('.category-card').forEach(card => {
+        const slug = card.dataset.category;
+        card.addEventListener('click', () => showProductsForCategory(slug));
+        card.querySelector('[data-category-btn]').addEventListener('click', (e) => {
+          e.stopPropagation();
+          showProductsForCategory(slug);
+        });
+      });
+      renderIcons();
+    }
+  }
+
+  renderCategories();
+}
+
+function showProductsForCategory(categorySlug) {
+  currentCategory = categorySlug;
+  document.getElementById('storeCategoriesView').hidden = true;
+  document.getElementById('storeProductsView').hidden = false;
+  
+  const catData = STORE_CATEGORIES.find(c => c.slug === categorySlug);
+  if (catData) {
+    document.getElementById('filterCategoryImage').src = catData.image;
+  }
+
+  renderProductsForCategory(categorySlug);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function renderProductsForCategory(categorySlug) {
+  const grid = document.getElementById('productsGrid');
+  const empty = document.getElementById('productsEmpty');
+  if (!grid) return;
+
+  let filtered = STORE_PRODUCTS.filter(p => {
+    const pCat = (p.category || 'General').toLowerCase();
+    return pCat === categorySlug.toLowerCase();
+  });
+
+  if (empty) empty.hidden = filtered.length > 0;
+  
+  grid.innerHTML = filtered.map((p, i) => {
+    const status = p.badge || 'In stock';
+    return `
+      <div class="product-card-new reveal in-view" data-id="${esc(p.id)}" style="animation-delay:${i * 60}ms">
+        <div class="product-card-image-wrapper">
+          <span class="product-status">${esc(status)}</span>
+          <img class="product-card-image" src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" />
+        </div>
+        <div class="product-card-info">
+          <div class="product-card-name">${esc(p.name)}</div>
+          <div class="product-card-footer">
+            <span class="product-card-price">${esc(p.price || '')}</span>
+            <button class="product-card-button" data-product-buy="${esc(p.id)}">Buy</button>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  grid.querySelectorAll('.product-card-new').forEach(card => {
+    const pid = card.dataset.id;
+    const p = STORE_PRODUCTS.find(x => x.id === pid);
+    card.addEventListener('click', (e) => {
+      if (!e.target.closest('[data-product-buy]')) {
+        if (p) openProduct(p);
+      }
+    });
+    const buyBtn = card.querySelector('[data-product-buy]');
+    if (buyBtn) {
+      buyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!p) return;
+        const vid = (p.komerzaVariants && (p.komerzaVariants.lifetime || p.komerzaVariants.monthly)) || '';
+        const pid = p.komerzaProductId || KMRZA.productId;
+        if (!isReal(pid) || !isReal(vid)) {
+          alert('This product isn\u2019t connected to Komerza yet.');
+          return;
+        }
+        addToCart({
+          id: pid + ':' + vid,
+          productId: pid, variantId: vid,
+          name: p.name + (p.komerzaVariants && p.komerzaVariants.lifetime ? ' \u2014 Lifetime' : ''),
+          price: p.price || p.priceMonthly,
+          image: p.image,
+        });
+        openCart();
+      });
+    }
+  });
+
+  renderIcons();
+}
+
 /* ============================================================
    STORE — data-driven catalog, filters, detail view, checkout
    ============================================================ */
@@ -429,12 +555,13 @@ let STORE_PRODUCTS = [];
 let storeState = { category: 'all', sort: 'featured', search: '' };
 
 async function initStore() {
-  const grid = document.getElementById('storeGrid');
-  if (!grid) return; // not the products page
-
-  // fetch catalog from backend; fall back to the default product
+  // Initialize on products page - handle both showcase and products view
+  const showcase = document.getElementById('categoryShowcase');
+  const backBtn = document.getElementById('backToCategories');
+  
+  // Fetch products from backend
   try {
-    const res = await fetch(API_BASE + '/api/store/products', { headers: apiHeaders(), credentials: 'include' });
+    const res = await fetch(API_BASE + '/api/products');
     if (res.ok) {
       const data = await res.json();
       STORE_PRODUCTS = (data.products || []).map(normalizeProduct);
@@ -442,22 +569,26 @@ async function initStore() {
   } catch (_) { /* backend not up yet */ }
   if (!STORE_PRODUCTS.length) STORE_PRODUCTS = [DEFAULT_PRODUCT];
 
-  buildFilters();
-  renderStoreGrid();
+  // Initialize category showcase if on products page
+  if (showcase) {
+    initStoreCategoryShowcase();
+  }
 
-  document.getElementById('storeSearch')?.addEventListener('input', (e) => {
-    storeState.search = e.target.value.toLowerCase();
-    renderStoreGrid();
-  });
-  document.getElementById('storeSort')?.addEventListener('change', (e) => {
-    storeState.sort = e.target.value;
-    renderStoreGrid();
-  });
-  document.getElementById('detailBack')?.addEventListener('click', showStore);
+  // Back button handler
+  if (backBtn) {
+    backBtn.addEventListener('click', () => {
+      currentCategory = null;
+      document.getElementById('storeProductsView').hidden = true;
+      document.getElementById('storeCategoriesView').hidden = false;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
 
-  // deep-link: ?p=<id> opens a product directly
-  const pid = new URLSearchParams(location.search).get('p');
-  if (pid) { const p = STORE_PRODUCTS.find(x => x.id === pid); if (p) openProduct(p); }
+  // deep-link: ?cat=<slug> opens a category
+  const catParam = new URLSearchParams(location.search).get('cat');
+  if (catParam && STORE_CATEGORIES.find(c => c.slug === catParam)) {
+    showProductsForCategory(catParam);
+  }
 }
 
 function normalizeProduct(p) {
@@ -853,7 +984,7 @@ async function refApi(path, opts = {}) {
 }
 
 function refLink(code) {
-  return location.origin + '/products.html?ref=' + encodeURIComponent(code);
+  return location.origin + '/products?ref=' + encodeURIComponent(code);
 }
 
 function renderReferralDashboard(panel, ref) {
@@ -981,3 +1112,4 @@ document.addEventListener('DOMContentLoaded', () => {
   trackPageView();
   enhanceSelects();
 });
+

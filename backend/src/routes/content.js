@@ -85,4 +85,28 @@ router.get('/storage-health', requireAdmin, (req, res) => {
   res.json({ success: true, ...storeHealth() });
 });
 
+/* ============================================================
+   BIO / LINK PAGES — public real view + like counters
+   ============================================================ */
+const slugSchema = z.string().trim().min(1).max(60).regex(/^[a-z0-9_-]+$/i);
+
+// Public: current counts for a bio page.
+router.get('/bio/:slug', (req, res) => {
+  const slug = slugSchema.parse(req.params.slug);
+  res.json({ success: true, bio: store.getBio(slug) });
+});
+
+// Public: register a view (frontend de-dupes per browser session).
+router.post('/bio/:slug/view', (req, res) => {
+  const slug = slugSchema.parse(req.params.slug);
+  res.json({ success: true, bio: store.bumpBioView(slug) });
+});
+
+// Public: like / unlike toggle.
+router.post('/bio/:slug/like', (req, res) => {
+  const slug = slugSchema.parse(req.params.slug);
+  const liked = req.body?.liked !== false; // default true
+  res.json({ success: true, bio: store.setBioLike(slug, liked) });
+});
+
 export default router;

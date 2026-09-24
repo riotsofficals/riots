@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { config } from './config.js';
 
 /**
@@ -132,6 +133,32 @@ export const store = {
   },
   getAnalytics() {
     return read('analytics', { total: 0, pages: {}, daily: {}, referrers: {}, updatedAt: null });
+  },
+
+  // --- Bio / link pages (real views + likes, shared across all visitors) ---
+  // Shape: { <slug>: { views, likes } }
+  getBio(slug) {
+    const all = read('bio', {});
+    const s = String(slug || 'default').slice(0, 60).toLowerCase();
+    return all[s] || { views: 0, likes: 0 };
+  },
+  bumpBioView(slug) {
+    const all = read('bio', {});
+    const s = String(slug || 'default').slice(0, 60).toLowerCase();
+    const b = all[s] || { views: 0, likes: 0 };
+    b.views = (b.views || 0) + 1;
+    all[s] = b;
+    write('bio', all);
+    return b;
+  },
+  setBioLike(slug, liked) {
+    const all = read('bio', {});
+    const s = String(slug || 'default').slice(0, 60).toLowerCase();
+    const b = all[s] || { views: 0, likes: 0 };
+    b.likes = Math.max(0, (b.likes || 0) + (liked ? 1 : -1));
+    all[s] = b;
+    write('bio', all);
+    return b;
   },
 
   // --- Products (admin-managed catalog) ---
@@ -359,17 +386,424 @@ export const store = {
     return list;
   },
 
+  // --- Pending Redemptions (referral -> key conversion) ---
+  getPendingRedemptions() {
+    return read('pendingRedemptions', []);
+  },
+  getPendingRedemption(id) {
+    return read('pendingRedemptions', []).find((r) => r.id === id) || null;
+  },
+  addPendingRedemption(r) {
+    const list = read('pendingRedemptions', []);
+    // Check if already pending
+    const existing = list.find((x) => x.discordId === r.discordId && x.status === 'pending');
+    if (existing) return existing;
+    
+    const item = {
+      id: 'pr_' + Date.now().toString(36),
+      discordId: r.discordId,
+      referralId: r.referralId,
+      keysRequested: r.keysRequested,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    };
+    list.push(item);
+    write('pendingRedemptions', list);
+    return item;
+  },
+  completeRedemption(id) {
+    const list = read('pendingRedemptions', []);
+    const idx = list.findIndex((x) => x.id === id);
+    if (idx === -1) return null;
+    list[idx].status = 'completed';
+    list[idx].completedAt = new Date().toISOString();
+    write('pendingRedemptions', list);
+    return list[idx];
+  },
+  rejectRedemption(id, reason) {
+    const list = read('pendingRedemptions', []);
+    const idx = list.findIndex((x) => x.id === id);
+    if (idx === -1) return null;
+    list[idx].status = 'rejected';
+    list[idx].rejectedAt = new Date().toISOString();
+    list[idx].rejectReason = reason || '';
+    write('pendingRedemptions', list);
+    return list[idx];
+  },
+
   // --- Discord ID -> key link cache (source of truth is the provider) ---
   getLinks() {
     return read('links', {});
   },
-  linkDiscord(discordId, provider, key) {
+  linkDiscord(discordId, provider, key, discordData = null) {
     const links = read('links', {});
-    links[discordId] = { provider, key, linkedAt: new Date().toISOString() };
+    links[discordId] = { 
+      provider, 
+      key, 
+      linkedAt: new Date().toISOString(),
+      discordData: discordData || null
+    };
     write('links', links);
     return links[discordId];
   },
   getLink(discordId) {
     return read('links', {})[discordId] || null;
+  },
+  updateDiscordData(discordId, discordData) {
+    const links = read('links', {});
+    if (links[discordId]) {
+      links[discordId].discordData = discordData;
+      links[discordId].updatedAt = new Date().toISOString();
+      write('links', links);
+      return links[discordId];
+    }
+    return null;
+  },
+
+  // --- Features (shared across products) ---
+  getFeatures() {
+    return read('features', []);
+  },
+  addFeature(f) {
+    const list = read('features', []);
+    const item = {
+      id: 'f_' + Date.now().toString(36),
+      name: f.name || 'Feature',
+      description: f.description || '',
+      category: f.category || 'General', // e.g., "Aimbot", "Visuals", "Utility"
+      createdAt: new Date().toISOString(),
+    };
+    list.push(item);
+    write('features', list);
+    return item;
+  },
+  updateFeature(id, patch) {
+    const list = read('features', []);
+    const idx = list.findIndex((x) => x.id === id);
+    if (idx === -1) return null;
+    for (const f of ['name', 'description', 'category']) {
+      if (patch[f] !== undefined) list[idx][f] = patch[f];
+    }
+    write('features', list);
+    return list[idx];
+  },
+  removeFeature(id) {
+    const list = read('features', []).filter((x) => x.id !== id);
+    write('features', list);
+    return list;
+  },
+
+  // --- Product Features (many-to-many relationship) ---
+  getProductFeatures(productId) {
+    const links = read('productFeatures', {});
+    return links[productId] || [];
+  },
+  setProductFeatures(productId, featureIds) {
+    const links = read('productFeatures', {});
+    links[productId] = Array.isArray(featureIds) ? featureIds : [];
+    write('productFeatures', links);
+    return links[productId];
+  },
+  addProductFeature(productId, featureId) {
+    const links = read('productFeatures', {});
+    if (!links[productId]) links[productId] = [];
+    if (!links[productId].includes(featureId)) {
+      links[productId].push(featureId);
+    }
+    write('productFeatures', links);
+    return links[productId];
+  },
+  removeProductFeature(productId, featureId) {
+    const links = read('productFeatures', {});
+    if (links[productId]) {
+      links[productId] = links[productId].filter((x) => x !== featureId);
+    }
+    write('productFeatures', links);
+    return links[productId];
+  },
+
+  // --- Categories ---
+  getCategories() {
+    return read('categories', []);
+  },
+  addCategory(c) {
+    const list = read('categories', []);
+    const item = {
+      id: 'cat_' + Date.now().toString(36),
+      name: c.name || 'Category',
+      slug: (c.slug || c.name || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
+      icon: c.icon || '📦',
+      description: c.description || '',
+      createdAt: new Date().toISOString(),
+    };
+    list.push(item);
+    write('categories', list);
+    return item;
+  },
+  updateCategory(id, patch) {
+    const list = read('categories', []);
+    const idx = list.findIndex((x) => x.id === id);
+    if (idx === -1) return null;
+    for (const f of ['name', 'slug', 'icon', 'description']) {
+      if (patch[f] !== undefined) list[idx][f] = patch[f];
+    }
+    write('categories', list);
+    return list[idx];
+  },
+  removeCategory(id) {
+    const list = read('categories', []).filter((x) => x.id !== id);
+    write('categories', list);
+    return list;
+  },
+
+  // --- Client Logs (from RiotsSeige: key verifications, logins, usage) ---
+  getLogs(filter = {}) {
+    const all = read('logs', []);
+    let result = all;
+    if (filter.type) result = result.filter((l) => l.type === filter.type);
+    if (filter.keyId) result = result.filter((l) => l.keyId === filter.keyId);
+    if (filter.from) result = result.filter((l) => new Date(l.timestamp) >= new Date(filter.from));
+    if (filter.to) result = result.filter((l) => new Date(l.timestamp) <= new Date(filter.to));
+    // Most recent first, with pagination support
+    result = result.reverse();
+    if (filter.limit) result = result.slice(0, filter.limit);
+    if (filter.skip) result = result.slice(filter.skip);
+    return result;
+  },
+  addLog(log) {
+    const list = read('logs', []);
+    const item = {
+      id: 'log_' + Date.now().toString(36),
+      type: log.type || 'info', // 'info', 'verification', 'login', 'execution', 'error'
+      keyId: log.keyId || null,
+      hwid: log.hwid || null,
+      message: log.message || '',
+      details: log.details || {},
+      timestamp: new Date().toISOString(),
+    };
+    list.unshift(item);
+    // Keep only last 10000 logs to bound file size
+    if (list.length > 10000) list.splice(10000);
+    write('logs', list);
+    return item;
+  },
+
+  // --- Cracks / Security Events ---
+  getCracks(filter = {}) {
+    const all = read('cracks', []);
+    let result = all;
+    if (filter.status) result = result.filter((c) => c.status === filter.status);
+    if (filter.type) result = result.filter((c) => c.type === filter.type);
+    if (filter.from) result = result.filter((c) => new Date(c.timestamp) >= new Date(filter.from));
+    if (filter.to) result = result.filter((c) => new Date(c.timestamp) <= new Date(filter.to));
+    result = result.reverse();
+    if (filter.limit) result = result.slice(0, filter.limit);
+    if (filter.skip) result = result.slice(filter.skip);
+    return result;
+  },
+  addCrack(crack) {
+    const list = read('cracks', []);
+    const item = {
+      id: 'crk_' + Date.now().toString(36),
+      type: crack.type || 'suspicious', // 'tamper', 'unauthorized_mod', 'key_reuse', 'suspicious', 'injection', 'memory_mod'
+      severity: crack.severity || 'medium', // 'low', 'medium', 'high', 'critical'
+      status: crack.status || 'open', // 'open', 'investigating', 'resolved', 'false_positive'
+      keyId: crack.keyId || null,
+      hwid: crack.hwid || null,
+      ip: crack.ip || null,
+      source: crack.source || 'client', // 'client', 'server', 'manual'
+      description: crack.description || '',
+      evidence: crack.evidence || {}, // fingerprints, file hashes, process names, etc.
+      notes: crack.notes || '',
+      resolvedAt: null,
+      timestamp: new Date().toISOString(),
+    };
+    list.unshift(item);
+    // Keep only last 5000 crack records
+    if (list.length > 5000) list.splice(5000);
+    write('cracks', list);
+    return item;
+  },
+  updateCrack(id, patch) {
+    const list = read('cracks', []);
+    const idx = list.findIndex((x) => x.id === id);
+    if (idx === -1) return null;
+    for (const f of ['status', 'notes', 'severity']) {
+      if (patch[f] !== undefined) list[idx][f] = patch[f];
+    }
+    if (patch.status === 'resolved' && !list[idx].resolvedAt) {
+      list[idx].resolvedAt = new Date().toISOString();
+    }
+    write('cracks', list);
+    return list[idx];
+  },
+
+  // --- Statistics / Dashboard summary ---
+  getDashboardStats() {
+    const products = read('products', []);
+    const logs = read('logs', []);
+    const cracks = read('cracks', []);
+    const features = read('features', []);
+    const categories = read('categories', []);
+
+    const now = new Date();
+    const oneDay = 24 * 60 * 60 * 1000;
+    const today = new Date(now.getTime() - (now.getHours() * 60 * 60 * 1000));
+    
+    const todaysLogs = logs.filter((l) => new Date(l.timestamp) >= today).length;
+    const openCracks = cracks.filter((c) => c.status === 'open').length;
+    const highSevCracks = cracks.filter((c) => c.severity === 'high' || c.severity === 'critical').length;
+
+    return {
+      totalProducts: products.length,
+      totalFeatures: features.length,
+      totalCategories: categories.length,
+      totalLogs: logs.length,
+      todaysLogs,
+      totalCracks: cracks.length,
+      openCracks,
+      highSeverityCracks: highSevCracks,
+      lastLogTime: logs[0]?.timestamp || null,
+      lastCrackTime: cracks[0]?.timestamp || null,
+    };
+  },
+
+  // --- External Keys (for RiotsSeige and other C++ / desktop tools) ---
+  getExternalKeys(filter = {}) {
+    let list = read('externalKeys', []);
+    if (filter.key) {
+      const q = String(filter.key).trim().toLowerCase();
+      list = list.filter((k) => k.key.toLowerCase().includes(q));
+    }
+    if (filter.discordId) {
+      list = list.filter((k) => k.discordId === filter.discordId);
+    }
+    if (filter.hwid) {
+      list = list.filter((k) => k.hwid && k.hwid.toLowerCase().includes(String(filter.hwid).toLowerCase()));
+    }
+    if (filter.blacklisted !== undefined && filter.blacklisted !== '') {
+      const b = String(filter.blacklisted) === 'true';
+      list = list.filter((k) => (k.blacklisted ? true : false) === b);
+    }
+    if (filter.expired !== undefined && filter.expired !== '') {
+      const now = Math.floor(Date.now() / 1000);
+      const isExp = String(filter.expired) === 'true';
+      list = list.filter((k) => isExp ? (k.expire && k.expire < now) : (!k.expire || k.expire >= now));
+    }
+    if (filter.unassigned !== undefined && filter.unassigned !== '') {
+      const isUn = String(filter.unassigned) === 'true';
+      list = list.filter((k) => isUn ? !k.discordId : !!k.discordId);
+    }
+    if (filter.product) {
+      list = list.filter((k) => (k.product || 'RiotsSeige').toLowerCase() === String(filter.product).toLowerCase());
+    }
+    return list;
+  },
+  getExternalKey(key) {
+    const list = read('externalKeys', []);
+    const k = String(key || '').trim().toUpperCase();
+    return list.find((x) => x.key.toUpperCase() === k) || null;
+  },
+  generateExternalKeys({ amount = 1, expire, note = '', product = 'RiotsSeige', prefix = 'RIOTS-EXT' }) {
+    const list = read('externalKeys', []);
+    const count = Math.max(1, Math.min(300, Number(amount) || 1));
+    const now = Math.floor(Date.now() / 1000);
+    const expireTimestamp = expire ? (now + Number(expire)) : null;
+    const generated = [];
+
+    for (let i = 0; i < count; i++) {
+      const rand1 = crypto.randomBytes(3).toString('hex').toUpperCase();
+      const rand2 = crypto.randomBytes(3).toString('hex').toUpperCase();
+      const rand3 = crypto.randomBytes(3).toString('hex').toUpperCase();
+      const keyStr = `${prefix}-${rand1}-${rand2}-${rand3}`;
+      
+      const item = {
+        key: keyStr,
+        product: product || 'RiotsSeige',
+        discordId: null,
+        discordData: null,
+        note: note || '',
+        created: now,
+        expire: expireTimestamp,
+        activated: false,
+        activatedAt: null,
+        hwid: null,
+        hwidResetCount: 0,
+        lastHwidReset: null,
+        executionCount: 0,
+        lastExecution: null,
+        blacklisted: false,
+        blacklistReason: '',
+      };
+      list.push(item);
+      generated.push(item);
+    }
+    write('externalKeys', list);
+    return generated;
+  },
+  assignExternalKey({ discordId, expire, note = '', product = 'RiotsSeige', discordData = null, prefix = 'RIOTS-EXT' }) {
+    const list = read('externalKeys', []);
+    const now = Math.floor(Date.now() / 1000);
+    const expireTimestamp = expire ? (now + Number(expire)) : null;
+    const rand1 = crypto.randomBytes(3).toString('hex').toUpperCase();
+    const rand2 = crypto.randomBytes(3).toString('hex').toUpperCase();
+    const rand3 = crypto.randomBytes(3).toString('hex').toUpperCase();
+    const keyStr = `${prefix}-${rand1}-${rand2}-${rand3}`;
+
+    const item = {
+      key: keyStr,
+      product: product || 'RiotsSeige',
+      discordId: String(discordId).trim(),
+      discordData: discordData || null,
+      note: note || '',
+      created: now,
+      expire: expireTimestamp,
+      activated: false,
+      activatedAt: null,
+      hwid: null,
+      hwidResetCount: 0,
+      lastHwidReset: null,
+      executionCount: 0,
+      lastExecution: null,
+      blacklisted: false,
+      blacklistReason: '',
+    };
+    list.push(item);
+    write('externalKeys', list);
+    return item;
+  },
+  updateExternalKey(key, patch) {
+    const list = read('externalKeys', []);
+    const k = String(key || '').trim().toUpperCase();
+    const idx = list.findIndex((x) => x.key.toUpperCase() === k);
+    if (idx === -1) return null;
+    for (const f of ['expire', 'note', 'blacklisted', 'blacklistReason', 'discordId', 'discordData', 'hwid', 'activated', 'activatedAt', 'executionCount', 'lastExecution', 'hwidResetCount', 'lastHwidReset', 'product']) {
+      if (patch[f] !== undefined) list[idx][f] = patch[f];
+    }
+    write('externalKeys', list);
+    return list[idx];
+  },
+  resetExternalHwid(key) {
+    const list = read('externalKeys', []);
+    const k = String(key || '').trim().toUpperCase();
+    const idx = list.findIndex((x) => x.key.toUpperCase() === k);
+    if (idx === -1) return null;
+    list[idx].hwid = null;
+    list[idx].hwidResetCount = (list[idx].hwidResetCount || 0) + 1;
+    list[idx].lastHwidReset = new Date().toISOString();
+    write('externalKeys', list);
+    return list[idx];
+  },
+  blacklistExternalKey(key, reason = 'Blacklisted by admin') {
+    return this.updateExternalKey(key, { blacklisted: true, blacklistReason: reason });
+  },
+  unblacklistExternalKey(key) {
+    return this.updateExternalKey(key, { blacklisted: false, blacklistReason: '' });
+  },
+  deleteExternalKey(key) {
+    const k = String(key || '').trim().toUpperCase();
+    const list = read('externalKeys', []).filter((x) => x.key.toUpperCase() !== k);
+    write('externalKeys', list);
+    return true;
   },
 };

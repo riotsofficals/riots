@@ -131,4 +131,25 @@ export const luaprot = {
       query: { discordId, key, enforceCooldown },
     });
   },
+
+  // Increment execution count for a key (called by external loader)
+  async incrementExecutionCount({ discordId, key }) {
+    // LuaProt may not have a dedicated endpoint for this
+    // The execution count is typically tracked on their side when keys are used
+    // We'll implement a local workaround by fetching and updating
+    try {
+      const info = await this.keyInfo({ discordId, key });
+      const k = info.key;
+      if (k) {
+        return this.updateKey({ discordId, key }, {
+          executionCount: (k.executionCount || 0) + 1,
+          lastExecution: Math.floor(Date.now() / 1000),
+        });
+      }
+    } catch (e) {
+      // Silently fail - execution count is not critical
+      console.warn('[luaprot] Failed to increment execution count:', e.message);
+    }
+    return { success: true };
+  },
 };

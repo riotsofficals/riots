@@ -35,6 +35,126 @@ router.get('/providers', (req, res) => {
 });
 
 /* ============================================================
+   EXTERNAL KEY VERIFICATION (for RiotsSeige C++ client)
+   ============================================================ */
+
+const externalVerifySchema = z.object({
+  key: z.string().trim().min(6).max(128),
+  hwid: z.string().trim().max(128).optional(),
+});
+
+// POST /api/external-keys/verify — Verify key for external loader
+// Checks our external store first, falls back to LuaProt
+router.post(
+  '/external-keys/verify',
+  asyncH(async (req, res) => {
+    const { key, hwid } = externalVerifySchema.parse(req.body);
+    
+    // Check external store first
+    let found = store.getExternalKey(key);
+    let isExternalStore = true;
+
+    if (!found) {
+      try {
+        const provider = getProvider(DEFAULT_PROVIDER);
+        const info = await provider.keyInfo({ key });
+        if (info && info.key) {
+          found = info.key;
+          isExternalStore = false;
+        }
+      } catch (_) {}
+    }
+    
+    if (!found) {
+      store.addLog({
+        type: 'verification',
+        keyId: null,
+        hwid: hwid || null,
+        message: 'Key verification failed - key not found',
+        details: { key: key.substring(0, 8) + '...' },
+      });
+      return res.status(404).json({ valid: false, message: 'Key not found.' });
+    }
+    
+    if (found.blacklisted) {
+      store.addLog({
+        type: 'verification',
+        keyId: found.key,
+        hwid: hwid || null,
+        message: 'Key verification failed - blacklisted',
+        details: { reason: found.blacklistReason },
+      });
+      return res.status(403).json({ valid: false, message: 'Key is blacklisted.' });
+    }
+    
+    // Check expiry
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (found.expire && found.expire < nowSec) {
+      store.addLog({
+        type: 'verification',
+        keyId: found.key,
+        hwid: hwid || null,
+        message: 'Key verification failed - expired',
+      });
+      return res.status(403).json({ valid: false, message: 'Key has expired.' });
+    }
+    
+    // HWID check
+    if (found.hwid && hwid && found.hwid.toLowerCase() !== hwid.toLowerCase()) {
+      store.addLog({
+        type: 'verification',
+        keyId: found.key,
+        hwid: hwid,
+        message: 'Key verification failed - HWID mismatch',
+        details: { expectedHwid: found.hwid.substring(0, 12) + '...' },
+      });
+      return res.status(403).json({ valid: false, message: 'HWID mismatch. Reset your HWID from the dashboard.' });
+    }
+    
+    // First activation - link HWID
+    const firstActivation = !found.activated || !found.hwid;
+    if (isExternalStore) {
+      const patch = {
+        executionCount: (found.executionCount || 0) + 1,
+        lastExecution: new Date().toISOString(),
+      };
+      if (firstActivation && hwid) {
+        patch.activated = true;
+        patch.activatedAt = new Date().toISOString();
+        patch.hwid = hwid;
+      }
+      store.updateExternalKey(found.key, patch);
+    } else {
+      try {
+        const provider = getProvider(DEFAULT_PROVIDER);
+        if (firstActivation && hwid) {
+          await provider.updateKey({ key }, { hwid, activated: true });
+        }
+        await provider.incrementExecutionCount({ key });
+      } catch (_) {}
+    }
+    
+    store.addLog({
+      type: 'verification',
+      keyId: found.key,
+      hwid: hwid || found.hwid || null,
+      message: firstActivation ? 'External key activated for first time' : 'External key verified successfully',
+      details: { product: found.product || found.hubName || 'RiotsSeige' },
+    });
+    
+    res.json({
+      valid: true,
+      firstActivation,
+      key: {
+        hubName: found.product || found.hubName || 'RiotsSeige',
+        expire: found.expire || null,
+        executionCount: (found.executionCount || 0) + 1,
+      },
+    });
+  })
+);
+
+/* ============================================================
    USER ROUTES (require Discord login)
    ============================================================ */
 
@@ -43,19 +163,42 @@ router.get(
   '/mine',
   requireAuth,
   asyncH(async (req, res) => {
-    const provider = getProvider(DEFAULT_PROVIDER);
-    const result = await provider.fetchKeys({ discordId: req.user.discordId });
-    const keys = (result.keys || []).map(publicKeyView);
+    let scriptKeys = [];
+    try {
+      const provider = getProvider(DEFAULT_PROVIDER);
+      const result = await provider.fetchKeys({ discordId: req.user.discordId });
+      scriptKeys = (result.keys || []).map(publicKeyView);
+    } catch (_) {}
+
+    // Also include user's external keys
+    const extKeys = store.getExternalKeys({ discordId: req.user.discordId }).map((k) => ({
+      key: k.key,
+      hubName: k.product || 'RiotsSeige',
+      note: k.note,
+      expire: k.expire,
+      created: k.created,
+      activated: k.activated,
+      blacklisted: k.blacklisted,
+      hwid: !!k.hwid,
+      hwidResetCount: k.hwidResetCount,
+      executionCount: k.executionCount,
+      lastExecution: k.lastExecution,
+      isExternal: true,
+      discord: { id: req.user.discordId, username: req.user.username, globalName: req.user.globalName },
+    }));
+
+    const allKeys = [...scriptKeys, ...extKeys];
+
     res.json({
       success: true,
-      linked: keys.length > 0,
+      linked: allKeys.length > 0,
       discord: {
         id: req.user.discordId,
         username: req.user.username,
         globalName: req.user.globalName,
         avatar: req.user.avatar,
       },
-      keys,
+      keys: allKeys,
     });
   })
 );
@@ -83,7 +226,14 @@ router.post(
 
     // Link by updating the key's discordId.
     await provider.updateKey({ key }, { discordId: req.user.discordId });
-    store.linkDiscord(req.user.discordId, DEFAULT_PROVIDER, key);
+    
+    // Store Discord profile data with the link
+    store.linkDiscord(req.user.discordId, DEFAULT_PROVIDER, key, {
+      id: req.user.discordId,
+      username: req.user.username,
+      global_name: req.user.globalName,
+      avatar: req.user.avatar,
+    });
 
     res.json({ success: true, message: 'Key linked to your account.' });
   })
@@ -119,12 +269,33 @@ router.get(
     const result = await provider.fetchKeys({
       discordId, key, hwid, blacklisted, expired, unassigned, active, page,
     });
-    res.json({ success: true, ...result }); // admin sees the raw provider shape
+    
+    // Enrich keys with Discord profile data from our store
+    const keys = (result.keys || []).map(k => {
+      // If the key has a discordId, try to get Discord profile from our links store
+      if (k.discordId) {
+        const link = store.getLink(k.discordId);
+        if (link && link.discordData) {
+          k.discordData = link.discordData;
+        } else {
+          // Create a basic discordData object even without full profile
+          k.discordData = {
+            id: k.discordId,
+            username: '',
+            global_name: '',
+            avatar: null
+          };
+        }
+      }
+      return k;
+    });
+    
+    res.json({ success: true, keys, ...(result.total !== undefined ? { total: result.total } : {}) });
   })
 );
 
 const genSchema = z.object({
-  amount: z.number().int().min(5).max(300),
+  amount: z.number().int().min(1).max(300),
   expire: z.number().int().min(3600).optional(),
   note: z.string().max(200).optional(),
   limitedScripts: z.array(z.string()).optional(),

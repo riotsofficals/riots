@@ -12,6 +12,10 @@ import contentRoutes from './routes/content.js';
 import storeRoutes from './routes/store.js';
 import referralRoutes from './routes/referral.js';
 import webhookRoutes from './routes/webhook.js';
+import productsRoutes from './routes/products.js';
+import logsRoutes from './routes/logs.js';
+import cracksRoutes from './routes/cracks.js';
+import externalKeysRoutes from './routes/externalKeys.js';
 
 const app = express();
 
@@ -106,22 +110,31 @@ app.get('/', (req, res) => res.json({ name: 'riots.wtf api', ok: true }));
 // ---- API interference guard (only for /api/*; keeps /auth, /webhook, /health open) ----
 // 1) In prod, block requests with no Origin AND no Referer (curl/scripts).
 // 2) If FRONTEND_TOKEN is set, require the matching x-client-token header.
-// This is a friction layer, not real auth — the session cookie + admin key are
-// the actual security. It just stops casual scraping and direct API poking.
+// NOTE: Desktop clients (RiotsSeige C++ client) calling external-keys, logs, or cracks
+// do not send browser Origin/Referer headers, so they are exempted here.
 app.use('/api', (req, res, next) => {
   if (req.method === 'OPTIONS') return next(); // let CORS preflight through
 
-  if (isProd && config.blockNoOrigin) {
-    const hasContext = req.get('origin') || req.get('referer');
-    if (!hasContext) {
-      return res.status(403).json({ success: false, message: 'Forbidden.' });
-    }
-  }
+  // Endpoints used by external desktop software
+  const isDesktopClientRoute =
+    req.path.startsWith('/external-keys') ||
+    req.path.startsWith('/keys/external-keys') ||
+    req.path.startsWith('/logs') ||
+    req.path.startsWith('/cracks');
 
-  if (config.frontendToken) {
-    const provided = req.get('x-client-token') || '';
-    if (provided !== config.frontendToken) {
-      return res.status(403).json({ success: false, message: 'Forbidden.' });
+  if (!isDesktopClientRoute) {
+    if (isProd && config.blockNoOrigin) {
+      const hasContext = req.get('origin') || req.get('referer');
+      if (!hasContext) {
+        return res.status(403).json({ success: false, message: 'Forbidden.' });
+      }
+    }
+
+    if (config.frontendToken) {
+      const provided = req.get('x-client-token') || '';
+      if (provided !== config.frontendToken) {
+        return res.status(403).json({ success: false, message: 'Forbidden.' });
+      }
     }
   }
   next();
@@ -130,9 +143,13 @@ app.use('/api', (req, res, next) => {
 // ---- Routes ----
 app.use('/auth', authRoutes);
 app.use('/api/keys', keyRoutes);
+app.use('/api/external-keys', externalKeysRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/store', storeRoutes);
 app.use('/api/referral', referralRoutes);
+app.use('/api/products', productsRoutes);
+app.use('/api/logs', logsRoutes);
+app.use('/api/cracks', cracksRoutes);
 
 // ---- 404 ----
 app.use((req, res) => res.status(404).json({ success: false, message: 'Not found.' }));

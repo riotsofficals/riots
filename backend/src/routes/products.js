@@ -15,6 +15,8 @@ const productSchema = z.object({
   priceMonthly: z.string().max(50).optional(),
   image: z.string().max(500).optional().or(z.literal('')),
   badge: z.string().max(100).optional(),
+  komerzaProductId: z.string().max(80).optional(),
+  komerzaVariants: z.record(z.string()).optional(),
   featured: z.boolean().optional(),
   order: z.number().optional(),
 });

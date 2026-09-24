@@ -441,9 +441,9 @@ function showProductsForCategory(categorySlug) {
   const catView = document.getElementById('storeCategoriesView');
   const prodView = document.getElementById('storeProductsView');
   const detailView = document.getElementById('detailView');
-  if (catView) catView.hidden = true;
-  if (detailView) detailView.hidden = true;
-  if (prodView) prodView.hidden = false;
+  if (catView) { catView.hidden = true; catView.style.display = 'none'; }
+  if (detailView) { detailView.hidden = true; detailView.style.display = 'none'; }
+  if (prodView) { prodView.hidden = false; prodView.style.display = ''; }
   
   const catData = STORE_CATEGORIES.find(c => 
     (c.slug && c.slug.toLowerCase() === categorySlug.toLowerCase()) ||
@@ -615,9 +615,12 @@ async function initStore() {
   if (backBtn) {
     backBtn.addEventListener('click', () => {
       currentCategory = null;
-      if (document.getElementById('detailView')) document.getElementById('detailView').hidden = true;
-      if (document.getElementById('storeProductsView')) document.getElementById('storeProductsView').hidden = true;
-      if (document.getElementById('storeCategoriesView')) document.getElementById('storeCategoriesView').hidden = false;
+      const dv = document.getElementById('detailView');
+      const sp = document.getElementById('storeProductsView');
+      const sc = document.getElementById('storeCategoriesView');
+      if (dv) { dv.hidden = true; dv.style.display = 'none'; }
+      if (sp) { sp.hidden = true; sp.style.display = 'none'; }
+      if (sc) { sc.hidden = false; sc.style.display = ''; }
       history.replaceState(null, '', location.pathname);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
@@ -629,9 +632,12 @@ async function initStore() {
     tab.addEventListener('click', (e) => {
       if (document.getElementById('categoryShowcase')) {
         currentCategory = null;
-        if (document.getElementById('detailView')) document.getElementById('detailView').hidden = true;
-        if (document.getElementById('storeProductsView')) document.getElementById('storeProductsView').hidden = true;
-        if (document.getElementById('storeCategoriesView')) document.getElementById('storeCategoriesView').hidden = false;
+        const dv = document.getElementById('detailView');
+        const sp = document.getElementById('storeProductsView');
+        const sc = document.getElementById('storeCategoriesView');
+        if (dv) { dv.hidden = true; dv.style.display = 'none'; }
+        if (sp) { sp.hidden = true; sp.style.display = 'none'; }
+        if (sc) { sc.hidden = false; sc.style.display = ''; }
         history.replaceState(null, '', location.pathname);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -790,11 +796,17 @@ let currentPlan = 'lifetime';
 
 function showStore() {
   const dv = document.getElementById('detailView');
-  if (dv) dv.hidden = true;
-  if (currentCategory && document.getElementById('storeProductsView')) {
-    document.getElementById('storeProductsView').hidden = false;
-  } else if (document.getElementById('storeCategoriesView')) {
-    document.getElementById('storeCategoriesView').hidden = false;
+  const sp = document.getElementById('storeProductsView');
+  const sc = document.getElementById('storeCategoriesView');
+  if (dv) { dv.hidden = true; dv.style.display = 'none'; }
+  if (currentCategory && sp) {
+    sp.hidden = false;
+    sp.style.display = '';
+    if (sc) { sc.hidden = true; sc.style.display = 'none'; }
+  } else if (sc) {
+    sc.hidden = false;
+    sc.style.display = '';
+    if (sp) { sp.hidden = true; sp.style.display = 'none'; }
   }
   const sv = document.getElementById('storeView');
   if (sv) sv.hidden = false;
@@ -805,11 +817,14 @@ function showStore() {
 
 function openProduct(p) {
   const $ = (id) => document.getElementById(id);
-  if ($('storeCategoriesView')) $('storeCategoriesView').hidden = true;
-  if ($('storeProductsView')) $('storeProductsView').hidden = true;
-  if ($('storeView')) $('storeView').hidden = true;
+  const sc = $('storeCategoriesView');
+  const sp = $('storeProductsView');
+  const sv = $('storeView');
   const dv = $('detailView');
-  if (dv) dv.hidden = false;
+  if (sc) { sc.hidden = true; sc.style.display = 'none'; }
+  if (sp) { sp.hidden = true; sp.style.display = 'none'; }
+  if (sv) { sv.hidden = true; sv.style.display = 'none'; }
+  if (dv) { dv.hidden = false; dv.style.display = ''; }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
   if ($('pdImage')) {
@@ -838,8 +853,11 @@ function bindCheckout(p) {
   let buyBtn = document.getElementById('buyBtn');
   if (!plansWrap || !buyBtn) return;
 
-  const productId = p.komerzaProductId || KMRZA.productId;
-  const variants = (p.komerzaVariants && Object.keys(p.komerzaVariants).length) ? p.komerzaVariants : (KMRZA.variants || {});
+  const isRivalsDefault = p.id === 'default' || p.id === 'prod_rivals' || p.id === 'p_rivals';
+  const productId = p.komerzaProductId || (isRivalsDefault ? KMRZA.productId : '');
+  const variants = (p.komerzaVariants && Object.keys(p.komerzaVariants).length)
+    ? p.komerzaVariants
+    : (isRivalsDefault ? (KMRZA.variants || {}) : {});
   const labels = {
     lifetime: `Buy Lifetime — ${p.price || ''}`.trim(),
     monthly: `Buy Monthly — ${p.priceMonthly || ''}`.trim(),
@@ -878,9 +896,9 @@ function bindCheckout(p) {
 
   buyBtn.addEventListener('click', (e) => {
     e.preventDefault();
-    const vid = variants[currentPlan];
+    const vid = variants[currentPlan] || variants.lifetime || variants.monthly;
     if (!isReal(productId) || !isReal(vid)) {
-      alert('This product isn\u2019t connected to Komerza yet. Add its product + variant IDs in the admin dashboard (or config.js).');
+      alert('This product is not linked to Komerza yet. You can set its Komerza product ID and variant IDs in the Admin Dashboard.');
       return;
     }
     komerzaOpen([{ productId, variantId: vid, quantity: 1 }]);

@@ -572,6 +572,8 @@ export const store = {
       priceMonthly: p.priceMonthly || '',
       image: p.image || '',
       badge: p.badge || 'In stock',
+      komerzaProductId: p.komerzaProductId || '',
+      komerzaVariants: p.komerzaVariants || {},
       featured: p.featured ?? true,
       order: p.order ?? list.length,
       createdAt: new Date().toISOString(),
@@ -584,7 +586,7 @@ export const store = {
     const list = this.getProducts();
     const idx = list.findIndex((x) => x.id === id);
     if (idx === -1) return null;
-    const allowed = ['name', 'category', 'description', 'price', 'priceMonthly', 'image', 'badge', 'featured', 'order'];
+    const allowed = ['name', 'category', 'description', 'price', 'priceMonthly', 'image', 'badge', 'komerzaProductId', 'komerzaVariants', 'featured', 'order'];
     for (const f of allowed) {
       if (patch[f] !== undefined) list[idx][f] = patch[f];
     }

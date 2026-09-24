@@ -1,4 +1,6 @@
 /* ===================== BASE / THEME ===================== */
+[hidden] { display: none !important; }
+
 :root {
   --bg: #0a0a0a;
   --bg-2: #0f0f0f;

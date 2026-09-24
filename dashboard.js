@@ -3164,3 +3164,21 @@ async function loadCategories() {
   }
 }
 
+/* ---------- Global Link Fallback for file:// and static hosts ---------- */
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a');
+  if (!a) return;
+  const href = a.getAttribute('href');
+  if (!href || href.startsWith('http://') || href.startsWith('https://') || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('javascript:')) return;
+
+  const isLocalOrFile = location.protocol === 'file:' || location.pathname.endsWith('.html');
+  if (!isLocalOrFile) return;
+
+  const [path, search] = href.split('?');
+  const known = ['index', 'products', 'status', 'referral', 'dashboard', 'terms', 'privacy', 'refund'];
+  if (known.includes(path.toLowerCase())) {
+    e.preventDefault();
+    const dest = path + '.html' + (search ? '?' + search : '');
+    window.location.href = dest;
+  }
+});

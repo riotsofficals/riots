@@ -116,8 +116,9 @@ function initHomeProducts() {
   const grid = document.getElementById('homeProductGrid');
   if (!grid) return;
   grid.classList.add('categories');
+  const target = (location.protocol === 'file:' || location.pathname.endsWith('.html')) ? 'products.html' : 'products';
   grid.innerHTML = GAME_CATEGORIES.map((cat, i) => `
-    <a href="products?cat=${cat.category}" class="game-card reveal in-view" style="animation-delay:${i * 100}ms">
+    <a href="${target}?cat=${encodeURIComponent(cat.category)}" class="game-card reveal in-view" style="animation-delay:${i * 100}ms">
       <div class="game-card-image">
         <img class="game-base" src="${cat.baseImage}" alt="${cat.name}" loading="lazy" />
         <img class="game-hover" src="${cat.hoverImage}" alt="${cat.name}" loading="lazy" />
@@ -307,6 +308,36 @@ function initFeatureAccordion() {
 }
 
 /* ---------- STORE: CATEGORY SHOWCASE (products page) ---------- */
+const DEFAULT_PRODUCTS = [
+  {
+    id: 'prod_rivals',
+    name: 'riots.wtf rivals script',
+    category: 'Roblox',
+    description: "The most complete Rivals script on the market — aimbot, silent aim, a full ESP suite, hit effects, skin/cosmetic unlocker, spoofers and more, all in one clean draggable menu. Anti-detection built in and updated & UD every single day.",
+    price: '$10',
+    priceMonthly: '$4',
+    image: 'product1.png',
+    badge: 'Undetected',
+    komerzaProductId: (window.RIOTS_CONFIG?.KOMERZA?.productId) || '',
+    komerzaVariants: (window.RIOTS_CONFIG?.KOMERZA?.variants) || {},
+    featured: true,
+  },
+  {
+    id: 'prod_siege',
+    name: 'riots.wtf siege script',
+    category: 'Rainbow Six Siege',
+    description: "Premium Rainbow Six Siege private software. Featuring recoil compensation, stream-proof visual ESP, customizable smoothing aimbot, and internal kernel protection.",
+    price: '$15',
+    priceMonthly: '$7',
+    image: 'seige.png',
+    badge: 'Undetected',
+    komerzaProductId: '',
+    komerzaVariants: {},
+    featured: true,
+  }
+];
+const DEFAULT_PRODUCT = DEFAULT_PRODUCTS[0];
+
 let STORE_CATEGORIES = [
   { name: 'Rainbow Six Siege', image: 'seige.png', slug: 'r6siege', description: 'Rainbow Six Siege private software and scripts' },
   { name: 'Roblox', image: 'roblox.png', slug: 'roblox', description: 'Roblox scripts, executors and exploits' },
@@ -357,7 +388,7 @@ async function initStoreCategoryShowcase() {
     console.warn('Store categories fetch warning:', e);
   }
 
-  if (!STORE_PRODUCTS.length) STORE_PRODUCTS = [DEFAULT_PRODUCT];
+  if (!STORE_PRODUCTS.length) STORE_PRODUCTS = DEFAULT_PRODUCTS.slice();
 
   // Count products for each category
   const catCounts = {};
@@ -409,13 +440,15 @@ function showProductsForCategory(categorySlug) {
   currentCategory = categorySlug;
   const catView = document.getElementById('storeCategoriesView');
   const prodView = document.getElementById('storeProductsView');
+  const detailView = document.getElementById('detailView');
   if (catView) catView.hidden = true;
+  if (detailView) detailView.hidden = true;
   if (prodView) prodView.hidden = false;
   
   const catData = STORE_CATEGORIES.find(c => 
     (c.slug && c.slug.toLowerCase() === categorySlug.toLowerCase()) ||
     (c.name && c.name.toLowerCase() === categorySlug.toLowerCase()) ||
-    (c.id && c.id === categorySlug)
+    (c.id && c.id.toLowerCase() === categorySlug.toLowerCase())
   );
 
   const imgEl = document.getElementById('filterCategoryImage');
@@ -432,6 +465,7 @@ function showProductsForCategory(categorySlug) {
   }
 
   renderProductsForCategory(categorySlug);
+  history.replaceState(null, '', location.pathname + '?cat=' + encodeURIComponent(categorySlug));
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -466,26 +500,17 @@ function renderProductsForCategory(categorySlug) {
     const badgeText = p.badge || 'Undetected';
     const imgUrl = p.image || (catData?.image || 'product1.png');
     return `
-      <div class="product-card-new reveal in-view" data-id="${esc(p.id)}" style="animation-delay:${i * 60}ms">
+      <div class="product-card-new reveal in-view" data-id="${esc(p.id)}" style="animation-delay:${i * 50}ms">
         <div class="product-card-image-wrapper">
-          <span class="product-card-badge">${esc(badgeText)}</span>
+          <span class="product-card-badge">
+            <span class="badge-dot"></span>
+            <span>${esc(badgeText)}</span>
+          </span>
           <img class="product-card-image" src="${esc(imgUrl)}" alt="${esc(p.name)}" loading="lazy" />
         </div>
         <div class="product-card-bottom">
-          <div class="product-card-info-main">
-            <h3 class="product-card-title">${esc(p.name)}</h3>
-            ${p.description ? `<p class="product-card-desc">${esc(p.description)}</p>` : ''}
-          </div>
-          <div class="product-card-footer">
-            <div class="product-card-pricing">
-              <span class="product-card-price">${esc(p.price || '$0')}</span>
-              ${p.priceMonthly ? `<span class="product-card-price-sub">${esc(p.priceMonthly)} / month</span>` : ''}
-            </div>
-            <button class="product-view-btn" type="button" data-product-view="${esc(p.id)}">
-              <span>View Product</span>
-              <i data-lucide="arrow-right"></i>
-            </button>
-          </div>
+          <h3 class="product-card-title">${esc(p.name)}</h3>
+          <button class="product-purchase-btn" type="button" data-product-buy="${esc(p.id)}">Purchase</button>
         </div>
       </div>`;
   }).join('');
@@ -493,12 +518,12 @@ function renderProductsForCategory(categorySlug) {
   grid.querySelectorAll('.product-card-new').forEach(card => {
     const pid = card.dataset.id;
     const p = STORE_PRODUCTS.find(x => x.id === pid);
-    card.addEventListener('click', () => {
+    card.addEventListener('click', (e) => {
       if (p) openProduct(p);
     });
-    const viewBtn = card.querySelector('[data-product-view]');
-    if (viewBtn) {
-      viewBtn.addEventListener('click', (e) => {
+    const buyBtn = card.querySelector('[data-product-buy]');
+    if (buyBtn) {
+      buyBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         if (p) openProduct(p);
       });
@@ -576,60 +601,85 @@ function komerzaOpen(items, opts = {}) {
   k.open(payload);
   return true;
 }
-function isValidEmail(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
-
-// Fallback product shown if the backend has no catalog yet (uses config Komerza IDs).
-const DEFAULT_PRODUCT = {
-  id: 'default',
-  name: 'riots.wtf rivals script',
-  category: 'Roblox',
-  description: "The most complete Rivals script on the market — aimbot, silent aim, a full ESP suite, hit effects, skin/cosmetic unlocker, spoofers and more, all in one clean draggable menu. Anti-detection built in and updated & UD every single day.",
-  price: '$10',
-  priceMonthly: '$4',
-  image: 'product1.png',
-  badge: 'Best Seller',
-  komerzaProductId: KMRZA.productId || '',
-  komerzaVariants: KMRZA.variants || {},
-  featured: true,
-};
-
-let STORE_PRODUCTS = [];
-let storeState = { category: 'all', sort: 'featured', search: '' };
-
 async function initStore() {
-  // Initialize on products page - handle both showcase and products view
   const showcase = document.getElementById('categoryShowcase');
   const backBtn = document.getElementById('backToCategories');
-  
-  // Fetch products from backend
-  try {
-    const res = await fetch(API_BASE + '/api/products');
-    if (res.ok) {
-      const data = await res.json();
-      STORE_PRODUCTS = (data.products || []).map(normalizeProduct);
-    }
-  } catch (_) { /* backend not up yet */ }
-  if (!STORE_PRODUCTS.length) STORE_PRODUCTS = [DEFAULT_PRODUCT];
+  const detailBackBtn = document.getElementById('detailBack');
 
-  // Initialize category showcase if on products page
-  if (showcase) {
-    initStoreCategoryShowcase();
+  // Wire up back button from product detail to products/category view
+  if (detailBackBtn) {
+    detailBackBtn.addEventListener('click', showStore);
   }
 
-  // Back button handler
+  // Wire up back button from products view to categories showcase
   if (backBtn) {
     backBtn.addEventListener('click', () => {
       currentCategory = null;
-      document.getElementById('storeProductsView').hidden = true;
-      document.getElementById('storeCategoriesView').hidden = false;
+      if (document.getElementById('detailView')) document.getElementById('detailView').hidden = true;
+      if (document.getElementById('storeProductsView')) document.getElementById('storeProductsView').hidden = true;
+      if (document.getElementById('storeCategoriesView')) document.getElementById('storeCategoriesView').hidden = false;
+      history.replaceState(null, '', location.pathname);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
   }
 
-  // deep-link: ?cat=<slug> opens a category
-  const catParam = new URLSearchParams(location.search).get('cat');
-  if (catParam && STORE_CATEGORIES.find(c => c.slug === catParam)) {
-    showProductsForCategory(catParam);
+  // If clicking on "Products" in navbar while on the products page, reset to category showcase
+  const navProdTabs = document.querySelectorAll('.nav-tabs a[href*="products"]');
+  navProdTabs.forEach(tab => {
+    tab.addEventListener('click', (e) => {
+      if (document.getElementById('categoryShowcase')) {
+        currentCategory = null;
+        if (document.getElementById('detailView')) document.getElementById('detailView').hidden = true;
+        if (document.getElementById('storeProductsView')) document.getElementById('storeProductsView').hidden = true;
+        if (document.getElementById('storeCategoriesView')) document.getElementById('storeCategoriesView').hidden = false;
+        history.replaceState(null, '', location.pathname);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    });
+  });
+
+  // Initialize category showcase if on products page
+  if (showcase) {
+    await initStoreCategoryShowcase();
+  } else {
+    // If on a page without showcase, fetch products for any standalone store cards
+    try {
+      const res = await fetch(API_BASE + '/api/products');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.products) && data.products.length > 0) {
+          STORE_PRODUCTS = data.products.map(normalizeProduct);
+        }
+      }
+    } catch (_) { /* backend not up yet */ }
+    if (!STORE_PRODUCTS.length) STORE_PRODUCTS = DEFAULT_PRODUCTS.slice();
+  }
+
+  // Deep-link handling: ?p=<id> opens product detail; ?cat=<slug> opens category
+  const params = new URLSearchParams(location.search);
+  const pParam = params.get('p');
+  const catParam = params.get('cat');
+
+  if (pParam) {
+    const prod = STORE_PRODUCTS.find(x => x.id === pParam || (x.name && x.name.toLowerCase() === pParam.toLowerCase()));
+    if (prod) {
+      if (prod.category) currentCategory = prod.category;
+      openProduct(prod);
+      return;
+    }
+  }
+
+  if (catParam) {
+    const matched = STORE_CATEGORIES.find(c => 
+      (c.slug && c.slug.toLowerCase() === catParam.toLowerCase()) ||
+      (c.name && c.name.toLowerCase() === catParam.toLowerCase()) ||
+      (c.id && c.id.toLowerCase() === catParam.toLowerCase())
+    );
+    if (matched) {
+      showProductsForCategory(matched.slug || matched.name);
+    } else {
+      showProductsForCategory(catParam);
+    }
   }
 }
 
@@ -739,27 +789,43 @@ function renderStoreGrid() {
 let currentPlan = 'lifetime';
 
 function showStore() {
-  document.getElementById('detailView').hidden = true;
-  document.getElementById('storeView').hidden = false;
+  const dv = document.getElementById('detailView');
+  if (dv) dv.hidden = true;
+  if (currentCategory && document.getElementById('storeProductsView')) {
+    document.getElementById('storeProductsView').hidden = false;
+  } else if (document.getElementById('storeCategoriesView')) {
+    document.getElementById('storeCategoriesView').hidden = false;
+  }
+  const sv = document.getElementById('storeView');
+  if (sv) sv.hidden = false;
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  history.replaceState(null, '', location.pathname);
+  const newSearch = currentCategory ? '?cat=' + encodeURIComponent(currentCategory) : '';
+  history.replaceState(null, '', location.pathname + newSearch);
 }
 
 function openProduct(p) {
   const $ = (id) => document.getElementById(id);
-  $('storeView').hidden = true;
-  $('detailView').hidden = false;
+  if ($('storeCategoriesView')) $('storeCategoriesView').hidden = true;
+  if ($('storeProductsView')) $('storeProductsView').hidden = true;
+  if ($('storeView')) $('storeView').hidden = true;
+  const dv = $('detailView');
+  if (dv) dv.hidden = false;
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
-  $('pdImage').src = p.image;
-  $('pdImage').alt = p.name;
-  $('pdName').textContent = p.name;
-  $('pdCat').textContent = p.category;
-  $('pdDesc').textContent = p.description;
+  if ($('pdImage')) {
+    $('pdImage').src = p.image || 'product1.png';
+    $('pdImage').alt = p.name || 'product';
+  }
+  if ($('pdName')) $('pdName').textContent = p.name || 'Product';
+  if ($('pdCat')) $('pdCat').textContent = p.category || 'General';
+  if ($('pdDesc')) $('pdDesc').textContent = p.description || '';
   const badge = $('pdBadge');
-  if (p.badge) { badge.textContent = p.badge; badge.hidden = false; } else { badge.hidden = true; }
-  if (p.price) $('pdPriceLife').innerHTML = `${esc(p.price)}<span>/ one-time</span>`;
-  if (p.priceMonthly) $('pdPriceMonth').innerHTML = `${esc(p.priceMonthly)}<span>/ month</span>`;
+  if (badge) {
+    if (p.badge) { badge.textContent = p.badge; badge.hidden = false; }
+    else { badge.hidden = true; }
+  }
+  if ($('pdPriceLife')) $('pdPriceLife').innerHTML = `${esc(p.price || '$10')}<span>/ one-time</span>`;
+  if ($('pdPriceMonth')) $('pdPriceMonth').innerHTML = `${esc(p.priceMonthly || '$4')}<span>/ month</span>`;
 
   bindCheckout(p);
   loadLiveStock(p);
@@ -1136,6 +1202,25 @@ function trackReferralVisit() {
   } catch (_) {}
   refApi('/api/referral/track', { method: 'POST', body: { code, vid } }).catch(() => {});
 }
+
+/* ---------- Global Link Fallback for file:// and static hosts ---------- */
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a');
+  if (!a) return;
+  const href = a.getAttribute('href');
+  if (!href || href.startsWith('http://') || href.startsWith('https://') || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('javascript:')) return;
+
+  const isLocalOrFile = location.protocol === 'file:' || location.pathname.endsWith('.html');
+  if (!isLocalOrFile) return;
+
+  const [path, search] = href.split('?');
+  const known = ['index', 'products', 'status', 'referral', 'dashboard', 'terms', 'privacy', 'refund'];
+  if (known.includes(path.toLowerCase())) {
+    e.preventDefault();
+    const dest = path + '.html' + (search ? '?' + search : '');
+    window.location.href = dest;
+  }
+});
 
 /* ---------- BOOT ---------- */
 document.addEventListener('DOMContentLoaded', () => {

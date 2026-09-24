@@ -467,16 +467,25 @@ function renderProductsForCategory(categorySlug) {
     const imgUrl = p.image || (catData?.image || 'product1.png');
     return `
       <div class="product-card-new reveal in-view" data-id="${esc(p.id)}" style="animation-delay:${i * 60}ms">
-        <span class="product-card-badge">${esc(badgeText)}</span>
         <div class="product-card-image-wrapper">
+          <span class="product-card-badge">${esc(badgeText)}</span>
           <img class="product-card-image" src="${esc(imgUrl)}" alt="${esc(p.name)}" loading="lazy" />
         </div>
         <div class="product-card-bottom">
-          <div class="product-card-meta">
-            <span class="product-card-name">${esc(p.name)}</span>
-            <span class="product-card-price">${esc(p.price || '')}${p.priceMonthly ? ` · ${esc(p.priceMonthly)}/mo` : ''}</span>
+          <div class="product-card-info-main">
+            <h3 class="product-card-title">${esc(p.name)}</h3>
+            ${p.description ? `<p class="product-card-desc">${esc(p.description)}</p>` : ''}
           </div>
-          <button class="product-view-btn" type="button" data-product-view="${esc(p.id)}">View</button>
+          <div class="product-card-footer">
+            <div class="product-card-pricing">
+              <span class="product-card-price">${esc(p.price || '$0')}</span>
+              ${p.priceMonthly ? `<span class="product-card-price-sub">${esc(p.priceMonthly)} / month</span>` : ''}
+            </div>
+            <button class="product-view-btn" type="button" data-product-view="${esc(p.id)}">
+              <span>View Product</span>
+              <i data-lucide="arrow-right"></i>
+            </button>
+          </div>
         </div>
       </div>`;
   }).join('');
